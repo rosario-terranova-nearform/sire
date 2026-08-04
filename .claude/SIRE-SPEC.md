@@ -477,7 +477,7 @@ Tasks are ordered by dependency. Each is scoped to be independently implementabl
 
 ### Phase 0 — Foundation
 
-**T-01 · Scaffold the project**
+**T-01 · Scaffold the project** ✅
 Create a React + Vite + TypeScript (`strict`) project, Tailwind v4, ESLint, Prettier, and Vitest. Set up `src/` with `app/` (routes via React Router), `domain/`, `engine/`, `ai/`, `content/`, `components/`, `lib/`. Add `.env.example` with `VITE_OPENROUTER_API_KEY`.
 _Done when:_ `npm run dev`, `npm run build`, `npm run preview`, `npm run test`, and `npm run lint` all pass on a clean checkout.
 

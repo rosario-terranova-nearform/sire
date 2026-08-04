@@ -21,4 +21,13 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    // shadcn/Pixelact registry components colocate a `cva` variants export
+    // (e.g. `buttonVariants`) with the component — standard for this
+    // ecosystem, not something to refactor away in vendored files.
+    files: ['src/components/ui/**/*.tsx'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
 ])

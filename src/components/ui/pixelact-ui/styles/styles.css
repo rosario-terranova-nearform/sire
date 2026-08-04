@@ -1,0 +1,34 @@
+:root {
+  --box-shadow-width: 4px;
+  --pixel-box-shadow:
+    calc(-1 * (var(--box-shadow-width))) 0 0 0 var(--ink),
+    var(--box-shadow-width) 0 0 0 var(--ink),
+    0 var(--box-shadow-width) 0 0 var(--ink),
+    0 calc(-1 * (var(--box-shadow-width))) 0 0 var(--ink);
+  --pixel-box-shadow-destructive:
+    calc(-1 * (var(--box-shadow-width))) 0 0 0 var(--destructive),
+    var(--box-shadow-width) 0 0 0 var(--destructive),
+    0 var(--box-shadow-width) 0 0 var(--destructive),
+    0 calc(-1 * (var(--box-shadow-width))) 0 0 var(--destructive);
+}
+
+.dark {
+  --pixel-box-shadow:
+    calc(-1 * (var(--box-shadow-width))) 0 0 0 var(--gold),
+    var(--box-shadow-width) 0 0 0 var(--gold),
+    0 var(--box-shadow-width) 0 0 var(--gold),
+    0 calc(-1 * (var(--box-shadow-width))) 0 0 var(--gold);
+}
+
+/* Same bitmap face as --font-heading (src/index.css), reused here so
+   pixel-bordered components stay in sync with the type system. Only ever
+   applied where text is 16px or larger — see T-03. */
+.pixel-font {
+  font-family: var(--font-heading);
+  line-height: 1.5;
+  letter-spacing: 0.5px;
+}
+
+.box-shadow-margin {
+  margin: var(--box-shadow-width);
+}

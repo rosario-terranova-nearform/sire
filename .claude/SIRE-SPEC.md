@@ -481,11 +481,11 @@ Tasks are ordered by dependency. Each is scoped to be independently implementabl
 Create a React + Vite + TypeScript (`strict`) project, Tailwind v4, ESLint, Prettier, and Vitest. Set up `src/` with `app/` (routes via React Router), `domain/`, `engine/`, `ai/`, `content/`, `components/`, `lib/`. Add `.env.example` with `VITE_OPENROUTER_API_KEY`.
 _Done when:_ `npm run dev`, `npm run build`, `npm run preview`, `npm run test`, and `npm run lint` all pass on a clean checkout.
 
-**T-02 · Install and configure Pixelact UI**
+**T-02 · Install and configure Pixelact UI** ✅
 Initialise shadcn/ui for Vite, then add Pixelact UI components from its registry (button, card, input, dialog, badge, progress at minimum). Verify Framer Motion comes in as a transitive dep and pin it. Do not install a second animation library.
 _Done when:_ a scratch page renders a pixel button, card, and dialog with correct pixel borders in both light and dark mode.
 
-**T-03 · Establish the pixel design system**
+**T-03 · Establish the pixel design system** ✅
 Define Tailwind theme tokens for the court palette (parchment, ink, wax red, gold, stone). Add a global `image-rendering: pixelated` utility. Load one bitmap display font (headings, counselor names) and one legible sans (body). Codify the integer-scale rule as `sprite-2x`/`sprite-3x`/`sprite-4x` utilities.
 _Done when:_ a typography + palette specimen page exists and no text below 16px uses the bitmap face.
 

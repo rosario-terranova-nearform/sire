@@ -489,7 +489,7 @@ _Done when:_ a scratch page renders a pixel button, card, and dialog with correc
 Define Tailwind theme tokens for the court palette (parchment, ink, wax red, gold, stone). Add a global `image-rendering: pixelated` utility. Load one bitmap display font (headings, counselor names) and one legible sans (body). Codify the integer-scale rule as `sprite-2x`/`sprite-3x`/`sprite-4x` utilities.
 _Done when:_ a typography + palette specimen page exists and no text below 16px uses the bitmap face.
 
-**T-04 · Sprite pipeline**
+**T-04 · Sprite pipeline** ✅
 Ship placeholder sprites first: programmatically generate 32×32 sheets for the six counselors, four frames each (`neutral`, `pleased`, `appalled`, `scheming`) as flat-color or simple geometric blocks, not finished character art. Real hand-authored or commissioned art is a later, non-blocking swap into the same sheet format. Build a `<Sprite>` component taking `counselorId` + `state`, using `background-position` steps — not per-frame `<img>` swaps.
 _Done when:_ `<Sprite>` renders all 6 × 4 combinations crisply at ×2 and ×4, with no layout shift on state change, using placeholder sheets.
 

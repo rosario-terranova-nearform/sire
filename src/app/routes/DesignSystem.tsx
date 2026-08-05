@@ -20,6 +20,8 @@ import {
   DialogTrigger,
 } from '@/components/ui/pixelact-ui/dialog'
 import { Progress } from '@/components/ui/pixelact-ui/progress'
+import { Sprite } from '@/components/Sprite'
+import { SPRITE_FRAME_ORDER } from '@/lib/sprite'
 
 const SEALS = [
   {
@@ -57,6 +59,10 @@ const FACTIONS = [
   'whispers',
   'commons',
 ] as const
+
+// The seed council's ids (spec §4). Placeholder sheets only — real
+// character art swaps in later without touching <Sprite> (T-04).
+const COUNSELOR_IDS = ['vane', 'marrow', 'grin', 'verity', 'wren', 'hob']
 
 /**
  * A pixel crown drawn on an 8x8 grid, crisp at any integer zoom.
@@ -146,6 +152,9 @@ function Seal({ token, hex, note }: (typeof SEALS)[number]) {
 
 export function DesignSystem() {
   const [question, setQuestion] = useState('')
+  const [mood, setMood] = useState<(typeof SPRITE_FRAME_ORDER)[number]>(
+    'neutral',
+  )
 
   return (
     <main className="min-h-svh bg-background px-6 py-10 text-foreground sm:px-10">
@@ -374,6 +383,73 @@ export function DesignSystem() {
             <div className="flex flex-col items-center gap-2">
               <CrownGlyph className="sprite-4x" />
               <p className="text-xs text-muted-foreground">sprite-4x · 128px</p>
+            </div>
+          </div>
+        </section>
+
+        {/* Sprites */}
+        <section className="flex flex-col gap-6 border-t-4 border-ink pt-10">
+          <div>
+            <h2 className="font-heading text-xl text-foreground">
+              The Placeholder Court
+            </h2>
+            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+              Programmatically generated 32×32 sheets (T-04) — flat-color
+              geometric blocks, not finished character art. Four frames per
+              counselor (neutral, pleased, appalled, scheming), read via{' '}
+              <code className="text-xs">background-position</code> steps on a
+              single element, never a per-frame <code className="text-xs">
+                &lt;img&gt;
+              </code>{' '}
+              swap.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <p className="text-sm text-muted-foreground">
+              No layout shift on state change — the box below holds its size
+              across every mood.
+            </p>
+            <div className="flex items-end gap-6">
+              <div className="border-4 border-dashed border-stone p-2">
+                <Sprite counselorId="vane" state={mood} scale={4} />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {SPRITE_FRAME_ORDER.map((state) => (
+                  <Button
+                    key={state}
+                    size="sm"
+                    variant={state === mood ? 'default' : 'secondary'}
+                    onClick={() => setMood(state)}
+                  >
+                    {state}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <p className="text-sm text-muted-foreground">
+              All six counselors × four moods, at ×2 and ×4.
+            </p>
+            <div className="grid grid-cols-[repeat(4,auto)] items-end gap-x-8 gap-y-6 overflow-x-auto">
+              {COUNSELOR_IDS.map((id) =>
+                SPRITE_FRAME_ORDER.map((state) => (
+                  <div
+                    key={`${id}-${state}`}
+                    className="flex flex-col items-center gap-1"
+                  >
+                    <div className="flex items-end gap-2">
+                      <Sprite counselorId={id} state={state} scale={2} />
+                      <Sprite counselorId={id} state={state} scale={4} />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {id} · {state}
+                    </p>
+                  </div>
+                )),
+              )}
             </div>
           </div>
         </section>

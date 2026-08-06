@@ -495,15 +495,15 @@ _Done when:_ `<Sprite>` renders all 6 × 4 combinations crisply at ×2 and ×4, 
 
 ### Phase 1 — Domain and content
 
-**T-05 · Define domain types**
+**T-05 · Define domain types** ✅
 Implement `src/domain/{counselor,audience,reign}.ts` exactly as specified in §3. Add Zod schemas mirroring each type in `src/domain/schemas.ts` for runtime validation at the API boundary.
 _Done when:_ types compile under `strict`, and schema round-trip tests pass for a fixture of each entity.
 
-**T-06 · Seed the council**
+**T-06 · Seed the council** ✅
 Write `src/content/counselors.ts` with all six counselors fully specified per §4 — including `voice.sampleLines`, `publicStance`, and `agenda`. Enforce the §4.1 authoring rules.
 _Done when:_ a unit test asserts six counselors exist, all ids unique, all factions distinct, every counselor has ≥ 2 sample lines, and no two `publicStance` values are semantically near-duplicates (manual review checkbox).
 
-**T-07 · Implement the audience state machine**
+**T-07 · Implement the audience state machine** ✅
 Build `src/engine/audience-machine.ts` as a pure reducer over `Audience` with actions for each stage transition and for appending petitions/exchanges/votes/decree/reactions. Include speaking-order resolution (shuffle, then move `speaks-last` counselors to the end).
 _Done when:_ unit tests cover every legal transition, reject every illegal one, and assert that `speaks-last` counselors are always ordered last.
 

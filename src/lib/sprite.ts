@@ -1,11 +1,8 @@
-/** Mirrors `SpriteState` in the eventual `domain/counselor.ts` (T-05). */
-export type SpriteState = 'neutral' | 'pleased' | 'appalled' | 'scheming'
+import { SPRITE_STATES, type SpriteState } from '@/domain/counselor'
 
-export const SPRITE_FRAME_ORDER: readonly SpriteState[] = [
-  'neutral',
-  'pleased',
-  'appalled',
-  'scheming',
-]
+export type { SpriteState }
+
+/** Frame order baked into the generated sheets (T-04). */
+export const SPRITE_FRAME_ORDER: readonly SpriteState[] = SPRITE_STATES
 
 export const SPRITE_FRAME_SIZE = 32

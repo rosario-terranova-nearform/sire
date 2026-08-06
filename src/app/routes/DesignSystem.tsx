@@ -152,9 +152,8 @@ function Seal({ token, hex, note }: (typeof SEALS)[number]) {
 
 export function DesignSystem() {
   const [question, setQuestion] = useState('')
-  const [mood, setMood] = useState<(typeof SPRITE_FRAME_ORDER)[number]>(
-    'neutral',
-  )
+  const [mood, setMood] =
+    useState<(typeof SPRITE_FRAME_ORDER)[number]>('neutral')
 
   return (
     <main className="min-h-svh bg-background px-6 py-10 text-foreground sm:px-10">
@@ -398,10 +397,8 @@ export function DesignSystem() {
               geometric blocks, not finished character art. Four frames per
               counselor (neutral, pleased, appalled, scheming), read via{' '}
               <code className="text-xs">background-position</code> steps on a
-              single element, never a per-frame <code className="text-xs">
-                &lt;img&gt;
-              </code>{' '}
-              swap.
+              single element, never a per-frame{' '}
+              <code className="text-xs">&lt;img&gt;</code> swap.
             </p>
           </div>
 

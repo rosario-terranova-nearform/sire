@@ -60,7 +60,7 @@ The obvious failure mode for a multi-persona LLM app is **persona collapse**: al
 | Model gateway    | OpenRouter via `@openrouter/ai-sdk-provider`                      | Free-tier per-faction chains ending in `openrouter/free`; `openrouter/auto` used only as a paid last-resort tier before demo mode (§6.3, §11).                                |
 | Persistence      | `localStorage` via a typed repository module                      | Swappable interface so a DB can be added later without touching UI.                                                                                                          |
 | Deployment       | None — local only                                                 | Clone the repo, `npm install`, add `.env.local` with `VITE_OPENROUTER_API_KEY`, `npm run dev` (or `npm run build && npm run preview`).                                       |
-| Testing          | Vitest (unit)                                                     | No e2e suite and no automated persona-distinctness eval in v1 (§11).                                                                                                          |
+| Testing          | Vitest (unit)                                                     | No e2e suite and no automated persona-distinctness eval in v1 (§11). `npm run test` never touches the network; the live OpenRouter round-trip is opt-in via `npm run test:live` (needs a key **and** `VITE_SIRE_LIVE_AI_TESTS=1`).                                                                                                          |
 
 ### 2.1 Pixel-art constraints
 
@@ -365,15 +365,33 @@ ABILITY — {ability.name}
 Map faction → model, so disagreement is partly architectural rather than purely prompted.
 
 ```ts
-export const FACTION_MODELS: Record<Faction, string[]> = {
-  martial: ["<free-model-a>", "openrouter/free", "openrouter/auto"],
-  coin: ["<free-model-b>", "openrouter/free", "openrouter/auto"],
-  fool: ["<free-model-c>", "openrouter/free", "openrouter/auto"],
-  temple: ["<free-model-a>", "openrouter/free", "openrouter/auto"],
-  whispers: ["<free-model-b>", "openrouter/free", "openrouter/auto"],
-  commons: ["<free-model-c>", "openrouter/free", "openrouter/auto"],
+// Populated 2026-08-07 from the live OpenRouter free list — three vendors.
+const FREE_MODEL_A = "google/gemma-4-26b-a4b-it:free";
+const FREE_MODEL_B = "nvidia/nemotron-3-super-120b-a12b:free";
+const FREE_MODEL_C = "poolside/laguna-s-2.1:free";
+
+// Two named free tiers per faction: free models are rate-limited per account
+// and one audience is 11+ calls in a burst. The first entry sets the voice.
+export const FACTION_MODELS: Record<Faction, readonly string[]> = {
+  martial: [FREE_MODEL_A, FREE_MODEL_B, "openrouter/free", "openrouter/auto"],
+  coin: [FREE_MODEL_B, FREE_MODEL_C, "openrouter/free", "openrouter/auto"],
+  fool: [FREE_MODEL_C, FREE_MODEL_A, "openrouter/free", "openrouter/auto"],
+  temple: [FREE_MODEL_A, FREE_MODEL_C, "openrouter/free", "openrouter/auto"],
+  whispers: [FREE_MODEL_B, FREE_MODEL_A, "openrouter/free", "openrouter/auto"],
+  commons: [FREE_MODEL_C, FREE_MODEL_B, "openrouter/free", "openrouter/auto"],
 };
+
+/** Council-wide structured calls (§5.5, §5.7) belong to no faction — the clerk
+ *  gets its own chain, ordered by structured-output support, not by voice. */
+export const COUNCIL_MODELS: readonly string[] = [
+  FREE_MODEL_B,
+  FREE_MODEL_A,
+  "openrouter/free",
+  "openrouter/auto",
+];
 ```
+
+Reasoning is disabled on every call (`providerOptions.openrouter.reasoning.enabled = false`): several free models are reasoning models, and when they stream, the scratchpad arrives as the counselor's own voice.
 
 Each entry is an ordered fallback chain. Populate the concrete slugs at implementation time from the live OpenRouter free-model list — free availability rotates, so **do not hardcode a single model anywhere**. `openrouter/free` is the last *free* resort in every chain. `openrouter/auto` (OpenRouter's Auto Router) is appended as one further tier beyond that: it has no deterministic per-faction mapping and bills at whichever underlying model it routes to, so it is only reached once every free option in the chain has failed — demo mode (§7.1) is the true final fallback if `openrouter/auto` fails too.
 
@@ -424,8 +442,10 @@ Custom counselors (§11, T-21) are validated by a dedicated client-side module �
 ### 7.1 Cost
 
 - Normal operation is free-tier only (`openrouter/free` chains, §6.3).
-- `openrouter/auto` is a paid last-resort fallback, reached only when every free option in a chain has failed. Real, variable cost is expected to be the rare exception, not the norm.
-- No rate limiting: a single local user runs their own instance against their own key, not a shared server serving strangers.
+- `openrouter/auto` is a paid last-resort fallback, reached only when every free option in a chain has failed *on its own merits*. Real, variable cost is expected to be the rare exception, not the norm.
+- **Free quota exhaustion is not a reason to spend money.** OpenRouter caps free-model requests per key per day, and one audience is 11+ calls. When a 429 names the key-wide quota (`free-models-per-day`), the chain stops there rather than walking down to the paid router: the court goes to tape (demo mode) with a banner that says the quota is spent. Every later call in that session skips the network entirely.
+- **Requests are paced, not rate-limited.** No limit is imposed on the user — there is still one local user against their own key — but outbound calls are held to two in flight with a short gap between starts, and the AI SDK's own retry is disabled (the chain plus one patient retry on a per-model 429 is the whole retry policy). Firing five petitions × four chain tiers × three SDK retries would be sixty requests for one stage.
+- A model failure the AI layer has already handled must never reach the user as a stack trace. Rejections orphaned on abandoned `streamText` results are swallowed by an app-level sink and counted, not logged red.
 - **Demo mode:** if `VITE_OPENROUTER_API_KEY` is missing, or every fallback (including `openrouter/auto`) fails, serve a canned transcript from `src/content/demo-audience.ts` with a visible "the court is a recording today" banner. The app must never show a raw error page.
 
 ---
@@ -509,27 +529,27 @@ _Done when:_ unit tests cover every legal transition, reject every illegal one, 
 
 ### Phase 2 — AI layer
 
-**T-08 · Wire up OpenRouter**
+**T-08 · Wire up OpenRouter** ✅
 Install `@openrouter/ai-sdk-provider` and `ai`. Create `src/ai/client.ts` exposing a configured provider that reads `VITE_OPENROUTER_API_KEY` from the client-side env. Implement `src/ai/models.ts` with per-faction fallback chains ending in `openrouter/free`, then `openrouter/auto` as a final paid last-resort tier, and a `resolveModel(faction)` helper that walks the chain on failure.
 _Done when:_ an integration test (skipped without a key) completes one round-trip through a free model, and killing the first chain entry transparently falls through to the next.
 
-**T-09 · Build the prompt builder**
+**T-09 · Build the prompt builder** ✅
 Implement `src/ai/prompt-builder.ts` per §6 — `buildPetitionMessages`, `buildDeliberationMessages`, `buildVoteMessages`, `buildAftermathMessages`. Ability instructions derive from `AbilityEffect` via an exhaustive switch.
 _Done when:_ snapshot tests exist for each builder, and a test asserts that `buildPetitionMessages` output contains **no** other counselor's text (the anchoring firewall).
 
-**T-10 · Petition/deliberation AI calls**
+**T-10 · Petition/deliberation AI calls** ✅
 Implement `requestPetition` and `requestDeliberationTurn` in `src/ai/calls.ts`: build messages via the prompt builder, call `streamText` directly against OpenRouter (no backend — the browser calls OpenRouter using `VITE_OPENROUTER_API_KEY`), and enforce `maxOutputTokens` for the 2–4 sentence cap. On model failure, fall through the faction's chain, then fall back to the demo-mode payload.
 _Done when:_ calling the function against a live free model streams a single counselor's speech in character in a test; an unknown counselor id throws before any network call is made; exhausting every entry in a faction's chain returns the demo-mode payload instead of throwing.
 
-**T-11 · Anti-sycophancy validator**
+**T-11 · Anti-sycophancy validator** ✅
 Implement `src/ai/validate-exchange.ts`: checks that a deliberation turn names another seated counselor, contains no banned phrase, and carries a `targetId`. Wire the one-shot stricter retry into the deliberation path, and emit a `sycophancy_violation` counter on second failure.
 _Done when:_ unit tests cover pass, retry-then-pass, and retry-then-fail; the counter is observable in logs.
 
-**T-12 · Vote and aftermath calls**
+**T-12 · Vote and aftermath calls** ✅
 Implement `requestVotes` and `requestReactions` in `src/ai/calls.ts` with `generateObject` against the §6.4 schemas, plus the post-validation business rules (no self-votes, all seated present, ids within `seated`, favor deltas clamped). Repair once, then drop offending entries.
 _Done when:_ both calls return valid payloads for a fixture audience; an injected self-vote is stripped; a hung council is returned intact rather than broken by a tiebreak.
 
-**T-13 · Demo mode**
+**T-13 · Demo mode** ✅
 Implement the canned `demo-audience.ts` fallback with its visible banner, triggered when `VITE_OPENROUTER_API_KEY` is missing or every fallback in a faction's chain (including `openrouter/auto`) fails.
 _Done when:_ removing the env key yields a full playable demo transcript instead of an error or a blank screen.
 

@@ -6,6 +6,7 @@ import { Chronicle } from './routes/Chronicle'
 import { Court } from './routes/Court'
 import { DesignSystem } from './routes/DesignSystem'
 import { EngineScratch } from './routes/EngineScratch'
+import { AiScratch } from './routes/AiScratch'
 
 export const router = createBrowserRouter([
   { path: '/', Component: ThroneRoom },
@@ -18,4 +19,6 @@ export const router = createBrowserRouter([
   { path: '/design-system', Component: DesignSystem },
   // Scratch harness for T-07 — drive the stage engine by hand.
   { path: '/engine-scratch', Component: EngineScratch },
+  // Scratch harness for Phase 2 (T-08 … T-13) — the AI layer, live or on tape.
+  { path: '/ai-scratch', Component: AiScratch },
 ])

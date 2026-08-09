@@ -62,6 +62,13 @@ export interface Counselor {
   isCustom: boolean
 }
 
+/**
+ * A court roster, keyed by counselor id — how every layer above the domain
+ * looks a counselor up, including custom ones (T-21) that live outside
+ * `src/content/counselors.ts`.
+ */
+export type CounselorRoster = Readonly<Record<string, Counselor>>
+
 export const FACTIONS: readonly Faction[] = [
   'martial',
   'coin',

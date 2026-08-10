@@ -555,7 +555,7 @@ _Done when:_ removing the env key yields a full playable demo transcript instead
 
 ### Phase 3 — Interface
 
-**T-14 · `<CounselorCard>` component**
+**T-14 · `<CounselorCard>` component** ✅
 Build the three variants (`compact`, `speaking`, `full`) per §8.2, including stat pips, faction badge, ability block, and the `AGENDA: ???` masked state.
 _Done when:_ a Storybook-or-equivalent page renders all three variants for all six counselors, revealed and unrevealed, in both colour modes.
 

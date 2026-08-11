@@ -559,7 +559,7 @@ _Done when:_ removing the env key yields a full playable demo transcript instead
 Build the three variants (`compact`, `speaking`, `full`) per §8.2, including stat pips, faction badge, ability block, and the `AGENDA: ???` masked state.
 _Done when:_ a Storybook-or-equivalent page renders all three variants for all six counselors, revealed and unrevealed, in both colour modes.
 
-**T-15 · Question composer**
+**T-15 · Question composer** ✅
 Parchment-styled input, 300-char cap with a visible counter, example questions as clickable prompts (mix absurd and real), and the crisis screen (T-22) gating submission.
 _Done when:_ submitting a valid question transitions the machine to `seating` and reveals the counselor grid; a crisis-flagged question shows the adjournment card instead and does not advance.
 

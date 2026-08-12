@@ -1,22 +1,28 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router'
 import { AdjournmentCard } from '@/components/AdjournmentCard'
-import { CounselorCard } from '@/components/CounselorCard'
 import { QuestionComposer } from '@/components/QuestionComposer'
+import { SeatingBoard } from '@/components/SeatingBoard'
 import { Button } from '@/components/ui/pixelact-ui/button'
 import { COUNSELORS } from '@/content/counselors'
 import type { Audience } from '@/domain/audience'
-import { audienceReducer, createAudience } from '@/engine/audience-machine'
+import {
+  audienceReducer,
+  createAudience,
+  isValidCouncil,
+} from '@/engine/audience-machine'
 import { screenQuestion } from '@/lib/crisis'
+import { loadDefaultCouncil, saveDefaultCouncil } from '@/lib/council-store'
+import { MAX_SEATED } from '@/domain/audience'
 
 /**
  * `/audience/new` (§8) — the two-step approach to the chamber.
  *
- * T-15 builds step 1: the question composer, gated by the crisis screen (§9).
- * A safe question advances the machine `composing → seating` and reveals the
- * council; a flagged one shows the adjournment card and the machine does not
- * move. Step 2's real seating flow — 3–5 selection, faction-clash hints,
- * persistence, and the hand-off to the chamber — is T-16, which replaces the
- * read-only grid revealed here.
+ * Step 1 (T-15) is the question composer, gated by the crisis screen (§9): a
+ * safe question advances `composing → seating`; a flagged one adjourns and the
+ * machine does not move. Step 2 (T-16) is the seating board — 3–5 selection,
+ * clash hints, a persisted default — and, on confirm, the machine advances to
+ * `petition` and hands the audience to the chamber.
  */
 
 const freshAudience = (question = ''): Audience =>
@@ -27,8 +33,16 @@ const freshAudience = (question = ''): Audience =>
   })
 
 export function AudienceNew() {
+  const navigate = useNavigate()
   const [audience, setAudience] = useState<Audience>(() => freshAudience())
   const [adjourned, setAdjourned] = useState(false)
+  // The seating selection *is* the persisted default: it seeds from the last
+  // council and is written back on every change, so it survives a reload (T-16).
+  const [selected, setSelected] = useState<string[]>(() => loadDefaultCouncil())
+
+  useEffect(() => {
+    saveDefaultCouncil(selected)
+  }, [selected])
 
   function handleSubmit(question: string) {
     // §9 — the crisis screen runs before any advance can be reached. On a hit
@@ -48,6 +62,32 @@ export function AudienceNew() {
   function editQuestion() {
     setAdjourned(false)
     setAudience((current) => freshAudience(current.question))
+  }
+
+  function toggleSeat(counselorId: string) {
+    setSelected((current) => {
+      if (current.includes(counselorId)) {
+        return current.filter((id) => id !== counselorId)
+      }
+      // The board keeps unseated cards inert at capacity, but guard here too.
+      if (current.length >= MAX_SEATED) return current
+      return [...current, counselorId]
+    })
+  }
+
+  function confirmSeating() {
+    if (!isValidCouncil(selected)) return
+    // §5.2 — confirming seating transitions the machine to `petition`; the
+    // first round of AI calls fires in the chamber (T-17), not here.
+    const seated = audienceReducer(audience, {
+      type: 'seat-council',
+      seated: selected,
+    })
+    const petitioning = audienceReducer(seated, { type: 'advance' })
+    saveDefaultCouncil(selected)
+    void navigate(`/audience/${petitioning.id}`, {
+      state: { audience: petitioning },
+    })
   }
 
   const composing = audience.stage === 'composing'
@@ -73,52 +113,38 @@ export function AudienceNew() {
             />
           </div>
         ) : (
-          <SeatingReveal audience={audience} onEditQuestion={editQuestion} />
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-wrap items-start justify-between gap-4 border-4 border-gold bg-card p-4">
+              <div className="min-w-0">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                  The matter before the court
+                </p>
+                <p className="mt-1 font-heading text-xl">{audience.question}</p>
+              </div>
+              <Button variant="secondary" size="sm" onClick={editQuestion}>
+                Change the question
+              </Button>
+            </div>
+
+            <SeatingBoard
+              counselors={COUNSELORS}
+              selected={selected}
+              onToggle={toggleSeat}
+            />
+
+            <div className="flex items-center gap-4">
+              <Button onClick={confirmSeating} disabled={!isValidCouncil(selected)}>
+                Convene the council
+              </Button>
+              {!isValidCouncil(selected) && (
+                <span className="text-sm text-muted-foreground">
+                  Seat between 3 and 5 counselors.
+                </span>
+              )}
+            </div>
+          </div>
         )}
       </div>
     </main>
-  )
-}
-
-/**
- * Step 2's placeholder: the council, revealed. T-16 turns this into the real
- * seating screen (selection, clash hints, persistence, chamber hand-off); for
- * now it proves the machine reached `seating` and surfaces the whole roster.
- */
-function SeatingReveal({
-  audience,
-  onEditQuestion,
-}: {
-  audience: Audience
-  onEditQuestion: () => void
-}) {
-  return (
-    <section className="flex flex-col gap-6" aria-label="Seating">
-      <div className="flex flex-wrap items-start justify-between gap-4 border-4 border-gold bg-card p-4">
-        <div className="min-w-0">
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">
-            The matter before the court
-          </p>
-          <p className="mt-1 font-heading text-xl">{audience.question}</p>
-        </div>
-        <Button variant="secondary" size="sm" onClick={onEditQuestion}>
-          Change the question
-        </Button>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {COUNSELORS.map((counselor) => (
-          <CounselorCard
-            key={counselor.id}
-            counselor={counselor}
-            variant="compact"
-          />
-        ))}
-      </div>
-
-      <p className="text-sm text-muted-foreground">
-        Choosing and seating the council is the next step (T-16).
-      </p>
-    </section>
   )
 }

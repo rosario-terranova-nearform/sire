@@ -41,6 +41,8 @@ export interface CounselorCardProps
   favor?: number
   /** `speaking` only: the (possibly partial) petition/deliberation text. */
   speech?: string
+  /** `speaking` only: in-world line shown before any speech arrives (T-17). */
+  placeholder?: string
   /** `compact` only: draw the seated/chosen highlight (T-16). */
   selected?: boolean
 }
@@ -195,6 +197,7 @@ export function CounselorCard({
   agendaRevealed = false,
   favor,
   speech,
+  placeholder,
   selected = false,
   className,
   ...rest
@@ -223,7 +226,7 @@ export function CounselorCard({
             </p>
           ) : (
             <p className="text-sm italic text-muted-foreground">
-              {counselor.name} takes the floor&hellip;
+              {placeholder ?? `${counselor.name} takes the floor…`}
             </p>
           )}
         </CardContent>

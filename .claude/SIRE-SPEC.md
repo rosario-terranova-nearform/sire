@@ -563,15 +563,15 @@ _Done when:_ a Storybook-or-equivalent page renders all three variants for all s
 Parchment-styled input, 300-char cap with a visible counter, example questions as clickable prompts (mix absurd and real), and the crisis screen (T-22) gating submission.
 _Done when:_ submitting a valid question transitions the machine to `seating` and reveals the counselor grid; a crisis-flagged question shows the adjournment card instead and does not advance.
 
-**T-16 · Seating screen**
+**T-16 · Seating screen** ✅
 Build `/audience/new`: the card grid, 3–5 selection with a minimum-3 gate, faction-clash hints ("the Marshal and the Keeper will not agree — good"), and seat/unseat animation. Persist the chosen council as the default for next time.
 _Done when:_ you cannot start an audience with fewer than 3 or more than 5 seated, selection state survives a reload, and confirming seating transitions the machine to `petition` and navigates to the chamber.
 
-**T-17 · Petition stage UI**
+**T-17 · Petition stage UI** ✅
 Fire n parallel `requestPetition` calls, stream each into its own card, staggered `AnimatePresence` entrances. Cards must render partial text gracefully and show a per-counselor loading state that reads as in-world ("the Marshal clears his throat").
 _Done when:_ all seated counselors stream concurrently, a single counselor failing does not block the others, and the stage completes when all streams close.
 
-**T-18 · Deliberation stage UI**
+**T-18 · Deliberation stage UI** ✅
 Sequential turn reveal with a transcript log: speaker sprite, name, rebuttal arrow to `targetId`, streaming text. Auto-scroll follows the active speaker.
 _Done when:_ turns appear strictly in engine order, `speaks-last` counselors always land last, and the log is readable as a scene end-to-end.
 

@@ -1,11 +1,17 @@
-import { useMemo } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router'
 import { DemoModeBanner } from '@/components/DemoModeBanner'
 import { PetitionStage } from '@/components/chamber/PetitionStage'
 import { DeliberationStage } from '@/components/chamber/DeliberationStage'
+import { VoteStage } from '@/components/chamber/VoteStage'
+import { DecreeStage } from '@/components/chamber/DecreeStage'
+import { AftermathStage } from '@/components/chamber/AftermathStage'
+import { ShareScene } from '@/components/chamber/ShareScene'
 import { Button } from '@/components/ui/pixelact-ui/button'
-import type { Audience } from '@/domain/audience'
-import { createDefaultReign } from '@/lib/reign'
+import type { Audience, Reaction } from '@/domain/audience'
+import { applyReactions } from '@/lib/reign'
+import { loadOrCreateReign, saveReign } from '@/lib/reign-store'
+import { buildSceneSnapshot } from '@/lib/share-scene'
 import { useChamber } from '@/hooks/useChamber'
 
 /**
@@ -31,11 +37,46 @@ export function Chamber() {
 }
 
 function ChamberScene({ audience }: { audience: Audience }) {
-  const reign = useMemo(() => createDefaultReign(), [])
-  const { petitions, turns, activeSpeaker, phase } = useChamber({
+  // The one permanent reign (§3): loaded once, moved only when the aftermath
+  // shifts favor, and persisted so it survives a reload (T-20).
+  const [reign, setReign] = useState(loadOrCreateReign)
+
+  const onAftermath = useCallback((reactions: readonly Reaction[]) => {
+    setReign((prev) => applyReactions(prev, reactions))
+  }, [])
+
+  // Persist outside render whenever the reign moves. The initial load is
+  // already on disk (`loadOrCreateReign` wrote it), so this is a no-op until
+  // favor changes — then it commits the new standings.
+  useEffect(() => {
+    saveReign(reign)
+  }, [reign])
+
+  const {
+    petitions,
+    turns,
+    activeSpeaker,
+    phase,
+    votes,
+    tally,
+    reactions,
+    issueDecree,
+    audience: live,
+  } = useChamber({
     initialAudience: audience,
     reign,
+    onAftermath,
   })
+
+  const showDeliberation = phase !== 'petition'
+  const showVote =
+    phase === 'tallying' ||
+    phase === 'decree' ||
+    phase === 'reacting' ||
+    phase === 'aftermath'
+  const showDecree =
+    phase === 'decree' || phase === 'reacting' || phase === 'aftermath'
+  const showAftermath = phase === 'reacting' || phase === 'aftermath'
 
   return (
     <main className="min-h-svh bg-background px-6 py-10 text-foreground sm:px-10">
@@ -53,21 +94,38 @@ function ChamberScene({ audience }: { audience: Audience }) {
 
         <PetitionStage petitions={petitions} />
 
-        {(phase === 'deliberation' || phase === 'concluded') && (
+        {showDeliberation && (
           <DeliberationStage turns={turns} activeSpeaker={activeSpeaker} />
         )}
 
-        {phase === 'concluded' && (
+        {showVote && (
+          <VoteStage
+            votes={votes}
+            tally={tally}
+            seated={audience.seated}
+            loading={phase === 'tallying'}
+          />
+        )}
+
+        {showDecree && (
+          <DecreeStage
+            seated={audience.seated}
+            onIssue={issueDecree}
+            disabled={phase !== 'decree'}
+          />
+        )}
+
+        {showAftermath && (
+          <AftermathStage reactions={reactions} loading={phase === 'reacting'} />
+        )}
+
+        {phase === 'aftermath' && live.decree !== undefined && (
           <section
-            aria-label="Next"
-            className="border-4 border-dashed border-stone p-6 text-center text-muted-foreground"
+            aria-label="Share"
+            className="border-t-4 border-ink pt-6"
           >
-            <p className="font-heading text-lg text-foreground">
-              The council has spoken.
-            </p>
-            <p className="mt-1 text-sm">
-              The tally and your decree are next. (T-19)
-            </p>
+            <p className="mb-3 font-heading text-lg">The court is adjourned.</p>
+            <ShareScene snapshot={buildSceneSnapshot(live, reign)} />
           </section>
         )}
       </div>

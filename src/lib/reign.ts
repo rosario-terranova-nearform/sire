@@ -1,4 +1,6 @@
+import type { Reaction } from '@/domain/audience'
 import type { Reign } from '@/domain/reign'
+import { MAX_FAVOR, MIN_FAVOR } from '@/domain/reign'
 
 /**
  * A fresh, empty reign for a chamber to run against.
@@ -25,4 +27,21 @@ export function createDefaultReign(
     history: [],
     createdAt: new Date().toISOString(),
   }
+}
+
+/**
+ * §5.7 — apply an aftermath's favor deltas to the reign. Every delta is folded
+ * onto the counselor's standing and clamped to the `-10 … +10` band the domain
+ * promises. Pure: the caller decides when to persist the result (T-20).
+ */
+export function applyReactions(reign: Reign, reactions: readonly Reaction[]): Reign {
+  if (reactions.length === 0) return reign
+
+  const favor = { ...reign.favor }
+  for (const reaction of reactions) {
+    const next = (favor[reaction.counselorId] ?? 0) + reaction.favorDelta
+    favor[reaction.counselorId] = Math.max(MIN_FAVOR, Math.min(MAX_FAVOR, next))
+  }
+
+  return { ...reign, favor }
 }

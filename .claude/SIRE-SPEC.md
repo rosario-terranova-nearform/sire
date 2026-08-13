@@ -575,11 +575,11 @@ _Done when:_ all seated counselors stream concurrently, a single counselor faili
 Sequential turn reveal with a transcript log: speaker sprite, name, rebuttal arrow to `targetId`, streaming text. Auto-scroll follows the active speaker.
 _Done when:_ turns appear strictly in engine order, `speaks-last` counselors always land last, and the log is readable as a scene end-to-end.
 
-**T-19 · Vote and decree UI**
+**T-19 · Vote and decree UI** ✅
 Tally strip with per-counselor pips and rationales; explicit "the council's preference, not the answer" framing; hung-council treatment. Then the decree parchment: free text, optional "I sided with…", wax-seal submit, and quick-decree buttons.
 _Done when:_ a tie renders as a hung council with no winner declared, and issuing a decree advances to `aftermath`.
 
-**T-20 · Aftermath and share**
+**T-20 · Aftermath and share** ✅
 Sprites flip to reaction moods, one line each, favor deltas animate upward and commit to the `Reign`. Render the full scene to a PNG via canvas for sharing.
 _Done when:_ favor changes persist across reload, and the exported PNG contains question, petitions, decree, and reactions legibly.
 

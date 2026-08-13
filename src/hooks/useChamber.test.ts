@@ -1,11 +1,17 @@
-import { renderHook, waitFor } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { useChamber, type ChamberDeps } from './useChamber'
-import type { Audience } from '@/domain/audience'
+import type { Audience, Reaction } from '@/domain/audience'
 import { createAudience } from '@/engine/audience-machine'
 import { COUNSELORS_BY_ID } from '@/content/counselors'
 import { createDefaultReign } from '@/lib/reign'
-import type { CounselStream, DeliberationTurn } from '@/ai/calls'
+import { tallyVotes } from '@/ai/sanitize'
+import type {
+  CounselStream,
+  DeliberationTurn,
+  ReactionsResult,
+  VotesResult,
+} from '@/ai/calls'
 
 /** An audience seated and already advanced to `petition`, as the seating
  *  screen hands it over. */
@@ -29,10 +35,60 @@ function streamOf(counselorId: string, text: string): CounselStream {
   return { counselorId, modelId: 'test', source: 'live', textStream: gen() }
 }
 
+/** A scripted tally: everyone backs the first other seated counselor. */
+function votesFor(audience: Audience): Promise<VotesResult> {
+  const seated = audience.seated
+  const votes = seated.map((voterId) => ({
+    voterId,
+    forId: seated.find((id) => id !== voterId) ?? voterId,
+    rationale: 'scripted',
+  }))
+  return Promise.resolve({
+    votes,
+    tally: tallyVotes(votes, seated),
+    modelId: 'test',
+    source: 'live',
+    repaired: false,
+    problems: [],
+    filled: [],
+  })
+}
+
+/** A scripted aftermath: +1 favor for everyone. */
+function reactionsFor(audience: Audience): Promise<ReactionsResult> {
+  const reactions: Reaction[] = audience.seated.map((counselorId) => ({
+    counselorId,
+    mood: 'pleased',
+    line: 'As you say, sire.',
+    favorDelta: 1,
+  }))
+  return Promise.resolve({
+    reactions,
+    modelId: 'test',
+    source: 'live',
+    repaired: false,
+    problems: [],
+    filled: [],
+  })
+}
+
+/** Every scripted call, for a chamber test that only cares about one stage. */
+function scriptedDeps(): Partial<ChamberDeps> {
+  return {
+    requestPetition: (counselor) =>
+      Promise.resolve(streamOf(counselor.id, `${counselor.name} speaks`)),
+    requestDeliberationTurn: (counselor, audience) =>
+      Promise.resolve(turnFor(counselor.id, audience.seated)),
+    requestVotes: (audience) => votesFor(audience),
+    requestReactions: (audience) => reactionsFor(audience),
+  }
+}
+
 describe('useChamber — petition stage (T-17)', () => {
   it('streams every seat and completes the stage when all close', async () => {
     const seated = ['vane', 'marrow', 'grin']
     const deps: Partial<ChamberDeps> = {
+      ...scriptedDeps(),
       requestPetition: (counselor) =>
         Promise.resolve(streamOf(counselor.id, `${counselor.name} speaks`)),
       requestDeliberationTurn: (counselor, audience) =>
@@ -47,7 +103,7 @@ describe('useChamber — petition stage (T-17)', () => {
       }),
     )
 
-    await waitFor(() => expect(result.current.phase).toBe('concluded'))
+    await waitFor(() => expect(result.current.phase).toBe('decree'))
 
     for (const id of seated) {
       const view = result.current.petitions.find((p) => p.counselorId === id)
@@ -59,6 +115,7 @@ describe('useChamber — petition stage (T-17)', () => {
   it('lets a single failing petition close without blocking the others', async () => {
     const seated = ['vane', 'marrow', 'grin']
     const deps: Partial<ChamberDeps> = {
+      ...scriptedDeps(),
       requestPetition: (counselor) =>
         counselor.id === 'marrow'
           ? Promise.reject(new Error('every model refused'))
@@ -75,7 +132,7 @@ describe('useChamber — petition stage (T-17)', () => {
       }),
     )
 
-    await waitFor(() => expect(result.current.phase).toBe('concluded'))
+    await waitFor(() => expect(result.current.phase).toBe('decree'))
 
     const marrow = result.current.petitions.find((p) => p.counselorId === 'marrow')
     expect(marrow?.status).toBe('silent')
@@ -94,6 +151,7 @@ describe('useChamber — deliberation stage (T-18)', () => {
     const seated = ['vane', 'marrow', 'wren']
     const callOrder: string[] = []
     const deps: Partial<ChamberDeps> = {
+      ...scriptedDeps(),
       requestPetition: (counselor) =>
         Promise.resolve(streamOf(counselor.id, 'a petition')),
       requestDeliberationTurn: (counselor, audience) => {
@@ -110,7 +168,7 @@ describe('useChamber — deliberation stage (T-18)', () => {
       }),
     )
 
-    await waitFor(() => expect(result.current.phase).toBe('concluded'))
+    await waitFor(() => expect(result.current.phase).toBe('decree'))
 
     expect(callOrder).toHaveLength(3)
     expect(callOrder.at(-1)).toBe('wren')
@@ -122,6 +180,73 @@ describe('useChamber — deliberation stage (T-18)', () => {
       expect(seated).toContain(turn.targetId)
       expect(turn.targetId).not.toBe(turn.counselorId)
     }
+  })
+})
+
+describe('useChamber — vote and decree (T-19)', () => {
+  it('holds at the decree with a settled tally, then advances on a ruling', async () => {
+    const seated = ['vane', 'marrow', 'grin']
+    const { result } = renderHook(() =>
+      useChamber({
+        initialAudience: petitioningAudience(seated),
+        reign: createDefaultReign(),
+        deps: scriptedDeps(),
+      }),
+    )
+
+    // The auto-run stops at the decree — the ruling is the monarch's.
+    await waitFor(() => expect(result.current.phase).toBe('decree'))
+    expect(result.current.tally).not.toBeNull()
+    expect(result.current.votes).toHaveLength(seated.length)
+
+    act(() => result.current.issueDecree('Let it be done.', 'vane'))
+
+    await waitFor(() => expect(result.current.phase).toBe('aftermath'))
+    expect(result.current.audience.decree?.text).toBe('Let it be done.')
+    expect(result.current.audience.decree?.sidedWithId).toBe('vane')
+  })
+
+  it('ignores an empty ruling and keeps holding at the decree', async () => {
+    const seated = ['vane', 'marrow', 'grin']
+    const { result } = renderHook(() =>
+      useChamber({
+        initialAudience: petitioningAudience(seated),
+        reign: createDefaultReign(),
+        deps: scriptedDeps(),
+      }),
+    )
+
+    await waitFor(() => expect(result.current.phase).toBe('decree'))
+    act(() => result.current.issueDecree('   '))
+
+    expect(result.current.phase).toBe('decree')
+    expect(result.current.audience.decree).toBeUndefined()
+  })
+})
+
+describe('useChamber — aftermath (T-20)', () => {
+  it('records reactions and hands them up so favor can be applied', async () => {
+    const seated = ['vane', 'marrow', 'grin']
+    let handedUp: readonly Reaction[] | null = null
+
+    const { result } = renderHook(() =>
+      useChamber({
+        initialAudience: petitioningAudience(seated),
+        reign: createDefaultReign(),
+        onAftermath: (reactions) => {
+          handedUp = reactions
+        },
+        deps: scriptedDeps(),
+      }),
+    )
+
+    await waitFor(() => expect(result.current.phase).toBe('decree'))
+    act(() => result.current.issueDecree('So be it.'))
+
+    await waitFor(() => expect(result.current.phase).toBe('aftermath'))
+    expect(result.current.reactions).toHaveLength(seated.length)
+    expect(handedUp).not.toBeNull()
+    expect(handedUp!).toHaveLength(seated.length)
   })
 })
 

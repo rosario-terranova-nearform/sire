@@ -4,7 +4,6 @@ import { AdjournmentCard } from '@/components/AdjournmentCard'
 import { QuestionComposer } from '@/components/QuestionComposer'
 import { SeatingBoard } from '@/components/SeatingBoard'
 import { Button } from '@/components/ui/pixelact-ui/button'
-import { COUNSELORS } from '@/content/counselors'
 import type { Audience } from '@/domain/audience'
 import {
   audienceReducer,
@@ -12,7 +11,9 @@ import {
   isValidCouncil,
 } from '@/engine/audience-machine'
 import { screenQuestion } from '@/lib/crisis'
-import { loadDefaultCouncil, saveDefaultCouncil } from '@/lib/council-store'
+import { repository } from '@/lib/repository'
+import { filterKnownSeated } from '@/lib/roster'
+import { useRoster } from '@/hooks/useRoster'
 import { MAX_SEATED } from '@/domain/audience'
 
 /**
@@ -34,14 +35,19 @@ const freshAudience = (question = ''): Audience =>
 
 export function AudienceNew() {
   const navigate = useNavigate()
+  const roster = useRoster()
   const [audience, setAudience] = useState<Audience>(() => freshAudience())
   const [adjourned, setAdjourned] = useState(false)
   // The seating selection *is* the persisted default: it seeds from the last
   // council and is written back on every change, so it survives a reload (T-16).
-  const [selected, setSelected] = useState<string[]>(() => loadDefaultCouncil())
+  // Filtered to seats that still exist — a counselor dismissed since the store
+  // was written must never be pre-seated onto a prompt (T-21).
+  const [selected, setSelected] = useState<string[]>(() =>
+    filterKnownSeated(repository.getDefaultCouncil(), roster.byId),
+  )
 
   useEffect(() => {
-    saveDefaultCouncil(selected)
+    repository.saveDefaultCouncil(selected)
   }, [selected])
 
   function handleSubmit(question: string) {
@@ -84,7 +90,7 @@ export function AudienceNew() {
       seated: selected,
     })
     const petitioning = audienceReducer(seated, { type: 'advance' })
-    saveDefaultCouncil(selected)
+    repository.saveDefaultCouncil(selected)
     void navigate(`/audience/${petitioning.id}`, {
       state: { audience: petitioning },
     })
@@ -127,7 +133,7 @@ export function AudienceNew() {
             </div>
 
             <SeatingBoard
-              counselors={COUNSELORS}
+              counselors={roster.counselors}
               selected={selected}
               onToggle={toggleSeat}
             />

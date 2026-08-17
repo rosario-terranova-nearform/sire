@@ -10,9 +10,10 @@ import { ShareScene } from '@/components/chamber/ShareScene'
 import { Button } from '@/components/ui/pixelact-ui/button'
 import type { Audience, Reaction } from '@/domain/audience'
 import { applyReactions } from '@/lib/reign'
-import { loadOrCreateReign, saveReign } from '@/lib/reign-store'
+import { getOrCreateReign, repository } from '@/lib/repository'
 import { buildSceneSnapshot } from '@/lib/share-scene'
 import { useChamber } from '@/hooks/useChamber'
+import { useRoster } from '@/hooks/useRoster'
 
 /**
  * §8 / §8.1 — the chamber, at `/audience/:id`. One continuous vertical scene:
@@ -39,17 +40,20 @@ export function Chamber() {
 function ChamberScene({ audience }: { audience: Audience }) {
   // The one permanent reign (§3): loaded once, moved only when the aftermath
   // shifts favor, and persisted so it survives a reload (T-20).
-  const [reign, setReign] = useState(loadOrCreateReign)
+  const [reign, setReign] = useState(() => getOrCreateReign())
+  // The live court, so a custom counselor seated at this audience resolves to a
+  // real definition through the whole AI chain rather than an unknown id (T-21).
+  const roster = useRoster()
 
   const onAftermath = useCallback((reactions: readonly Reaction[]) => {
     setReign((prev) => applyReactions(prev, reactions))
   }, [])
 
   // Persist outside render whenever the reign moves. The initial load is
-  // already on disk (`loadOrCreateReign` wrote it), so this is a no-op until
+  // already on disk (`getOrCreateReign` wrote it), so this is a no-op until
   // favor changes — then it commits the new standings.
   useEffect(() => {
-    saveReign(reign)
+    repository.saveReign(reign)
   }, [reign])
 
   const {
@@ -65,6 +69,7 @@ function ChamberScene({ audience }: { audience: Audience }) {
   } = useChamber({
     initialAudience: audience,
     reign,
+    roster: roster.byId,
     onAftermath,
   })
 

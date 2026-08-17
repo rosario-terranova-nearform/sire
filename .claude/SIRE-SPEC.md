@@ -585,7 +585,7 @@ _Done when:_ favor changes persist across reload, and the exported PNG contains 
 
 ### Phase 4 — Game layer
 
-**T-21 · Reign persistence and custom counselors**
+**T-21 · Reign persistence and custom counselors** ✅
 Implement `src/lib/repository.ts` — a typed interface (`getReign`, `saveReign`, `listAudiences`, `saveAudience`) backed by `localStorage`, with schema-versioned migration. Then the custom counselor editor: name, title, faction, stats, ability picker, voice fields. Custom counselors go through a dedicated client-side validation module — length caps, prompt-injection stripping, and the public-figure denylist — since there is no backend to enforce them against.
 _Done when:_ the repository interface has zero `localStorage` references leaking into UI code, a corrupted store recovers rather than crashing, and a custom counselor with an injected "ignore previous instructions" payload still speaks in character.
 

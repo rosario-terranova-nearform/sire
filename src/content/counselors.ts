@@ -1,4 +1,4 @@
-import type { Counselor, SpriteState } from '@/domain/counselor'
+import type { Counselor, Faction, SpriteState } from '@/domain/counselor'
 
 /** Placeholder sheets (T-04) put the four frames in this order. */
 const FRAMES: Record<SpriteState, number> = {
@@ -221,4 +221,17 @@ export const COUNSELORS_BY_ID: Readonly<Record<string, Counselor>> =
 
 export function getCounselor(id: string): Counselor | undefined {
   return COUNSELORS_BY_ID[id]
+}
+
+/**
+ * T-21 — the sprite sheet a custom counselor of this faction borrows.
+ *
+ * Custom counselors ship no art of their own, so they wear the portrait of the
+ * seed counselor who holds their faction. Each of the six factions has exactly
+ * one seed counselor (§4.1), so the match is unambiguous; the `vane` fallback
+ * only guards against a faction with no seed, which the domain forbids.
+ */
+export function factionSprite(faction: Faction): Counselor['sprite'] {
+  const seed = COUNSELORS.find((counselor) => counselor.faction === faction)
+  return (seed ?? COUNSELORS[0]).sprite
 }

@@ -143,6 +143,52 @@ describe('useChamber — petition stage (T-17)', () => {
         .every((p) => p.status === 'complete'),
     ).toBe(true)
   })
+
+  // §5.7 / T-23 — favor ≤ -8 empties a seat. The counselor is never asked to
+  // petition or take the floor; the fool is exempt and attends from any depth.
+  it('drops a counselor in deep disfavor and never calls them, but keeps the exempt fool', async () => {
+    const seated = ['vane', 'grin', 'marrow']
+    const petitioned: string[] = []
+    const deliberated: string[] = []
+    const deps: Partial<ChamberDeps> = {
+      ...scriptedDeps(),
+      requestPetition: (counselor) => {
+        petitioned.push(counselor.id)
+        return Promise.resolve(streamOf(counselor.id, `${counselor.name} speaks`))
+      },
+      requestDeliberationTurn: (counselor, audience) => {
+        deliberated.push(counselor.id)
+        return Promise.resolve(turnFor(counselor.id, audience.seated))
+      },
+    }
+
+    // vane is banished by favor; grin is at the same depth but exempt.
+    const reign = {
+      ...createDefaultReign(),
+      favor: { vane: -8, grin: -10 },
+    }
+
+    const { result } = renderHook(() =>
+      useChamber({
+        initialAudience: petitioningAudience(seated),
+        reign,
+        deps,
+      }),
+    )
+
+    await waitFor(() => expect(result.current.phase).toBe('decree'))
+
+    const vane = result.current.petitions.find((p) => p.counselorId === 'vane')
+    expect(vane?.status).toBe('absent')
+    expect(petitioned).not.toContain('vane')
+    expect(deliberated).not.toContain('vane')
+
+    // Grin sat down and spoke like anyone else.
+    expect(petitioned).toContain('grin')
+    expect(deliberated).toContain('grin')
+    const grin = result.current.petitions.find((p) => p.counselorId === 'grin')
+    expect(grin?.status).toBe('complete')
+  })
 })
 
 describe('useChamber — deliberation stage (T-18)', () => {
@@ -225,16 +271,18 @@ describe('useChamber — vote and decree (T-19)', () => {
 })
 
 describe('useChamber — aftermath (T-20)', () => {
-  it('records reactions and hands them up so favor can be applied', async () => {
+  it('records reactions and hands the finished audience up so favor can be applied', async () => {
     const seated = ['vane', 'marrow', 'grin']
-    let handedUp: readonly Reaction[] | null = null
+    let handedUpReactions: readonly Reaction[] | null = null
+    let handedUpAudience: Audience | null = null
 
     const { result } = renderHook(() =>
       useChamber({
         initialAudience: petitioningAudience(seated),
         reign: createDefaultReign(),
-        onAftermath: (reactions) => {
-          handedUp = reactions
+        onAftermath: (audience, reactions) => {
+          handedUpAudience = audience
+          handedUpReactions = reactions
         },
         deps: scriptedDeps(),
       }),
@@ -245,8 +293,13 @@ describe('useChamber — aftermath (T-20)', () => {
 
     await waitFor(() => expect(result.current.phase).toBe('aftermath'))
     expect(result.current.reactions).toHaveLength(seated.length)
-    expect(handedUp).not.toBeNull()
-    expect(handedUp!).toHaveLength(seated.length)
+    expect(handedUpReactions).not.toBeNull()
+    expect(handedUpReactions!).toHaveLength(seated.length)
+    // The audience handed up carries the decree and the recorded reactions, so
+    // the caller can commit heard counts and memory in one pass (T-23).
+    expect(handedUpAudience).not.toBeNull()
+    expect(handedUpAudience!.decree?.text).toBe('So be it.')
+    expect(handedUpAudience!.reactions).toHaveLength(seated.length)
   })
 })
 

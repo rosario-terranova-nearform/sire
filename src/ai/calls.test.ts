@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  CrisisAdjournedError,
   DELIBERATION_MAX_TOKENS,
   DEMO_MAX_CHUNKS,
   DEMO_MODEL_ID,
@@ -711,5 +712,57 @@ describe('requestReactions (§5.7, T-12)', () => {
 
     expect(result.source).toBe('demo')
     expect(result.modelId).toBe(DEMO_MODEL_ID)
+  })
+})
+
+describe('the crisis screen gates every generation path (§9, T-22)', () => {
+  // The composer already screens the question (T-15); this is the belt-and-
+  // braces gate at the generation boundary itself, so no call site can reach a
+  // model with a flagged question. The resolver here throws if it is ever
+  // touched — proving the refusal happens before any network work.
+  const crisis = makeAudience({ question: 'I want to kill myself' })
+  const explode = () => {
+    throw new Error('a flagged question must never reach a model')
+  }
+
+  it('refuses a petition before touching a model', async () => {
+    await expect(
+      requestPetition(vane, crisis, reign, { resolveLanguageModel: explode }),
+    ).rejects.toBeInstanceOf(CrisisAdjournedError)
+  })
+
+  it('refuses a deliberation turn before touching a model', async () => {
+    await expect(
+      requestDeliberationTurn(vane, crisis, reign, {
+        resolveLanguageModel: explode,
+      }),
+    ).rejects.toBeInstanceOf(CrisisAdjournedError)
+  })
+
+  it('refuses the vote before touching a model', async () => {
+    await expect(
+      requestVotes(crisis, reign, { resolveLanguageModel: explode }),
+    ).rejects.toBeInstanceOf(CrisisAdjournedError)
+  })
+
+  it('refuses the reactions before touching a model', async () => {
+    await expect(
+      requestReactions(crisis, reign, { resolveLanguageModel: explode }),
+    ).rejects.toBeInstanceOf(CrisisAdjournedError)
+  })
+
+  it('carries the matched category on the error', async () => {
+    await expect(
+      requestPetition(vane, crisis, reign, { resolveLanguageModel: explode }),
+    ).rejects.toMatchObject({ kind: 'crisis-adjourned', category: 'self-harm' })
+  })
+
+  it('never adjourns an ordinary dark question', async () => {
+    const dark = makeAudience({ question: 'Should I fire my co-founder?' })
+    const model = mockTextModel(modelChain('martial')[0], 'Cut him loose, sire.')
+    const stream = await requestPetition(vane, dark, reign, {
+      resolveLanguageModel: resolverFor({ [model.modelId]: model }),
+    })
+    expect(stream.source).toBe('live')
   })
 })

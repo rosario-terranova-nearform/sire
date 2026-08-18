@@ -17,6 +17,7 @@ import {
 } from '@/ai/calls'
 import type { Tally } from '@/ai/sanitize'
 import { audienceReducer, resolveSpeakingOrder } from '@/engine/audience-machine'
+import { refusesToAttend } from '@/lib/reign'
 
 /**
  * The chamber engine (T-17/T-18) — one continuous run through the two AI
@@ -35,7 +36,14 @@ import { audienceReducer, resolveSpeakingOrder } from '@/engine/audience-machine
  * streams without a network or timers.
  */
 
-export type PetitionStatus = 'waiting' | 'speaking' | 'complete' | 'silent'
+export type PetitionStatus =
+  | 'waiting'
+  | 'speaking'
+  | 'complete'
+  /** Spoke nothing — the model gave no text (§5.3, T-17). */
+  | 'silent'
+  /** Refused to attend at all: favor ≤ -8 (§5.7, T-23). The seat sits empty. */
+  | 'absent'
 
 export interface PetitionView {
   counselorId: string
@@ -93,9 +101,10 @@ export interface UseChamberOptions {
   roster?: CounselorRoster
   /** Kick the run off on mount. Default true. */
   autoStart?: boolean
-  /** §5.7 — the aftermath's reactions, once recorded, so the caller can apply
-   *  favor to the reign and persist it (T-20). */
-  onAftermath?: (reactions: readonly Reaction[]) => void
+  /** §5.7 — the finished audience and its reactions, once recorded, so the
+   *  caller can commit favor, heard counts and memory to the reign and persist
+   *  the audience (T-20/T-23). The audience carries the decree and reactions. */
+  onAftermath?: (audience: Audience, reactions: readonly Reaction[]) => void
   /** Test seam: scripted AI calls in place of the real network layer. */
   deps?: Partial<ChamberDeps>
 }
@@ -168,18 +177,30 @@ export function useChamber({
   async function run(signal: AbortSignal) {
     const seated = current.current.seated
 
+    // §5.7 / T-23 — a counselor at favor ≤ -8 refuses to attend; their seat sits
+    // empty and they neither petition nor take the floor. The fool is exempt
+    // (`licensed-tongue`), so this never silences him. Computed once, up front,
+    // so the same council attends every stage of this run.
+    const attending = seated.filter((id) => {
+      const counselor = roster[id]
+      return counselor !== undefined && !refusesToAttend(counselor, reign)
+    })
+    for (const id of seated) {
+      if (!attending.includes(id)) setStatus(id, 'absent')
+    }
+
     // §5.2 → §5.3: seating confirms into petition. Usually already there
     // (the seating screen advanced us); this is the belt-and-braces path.
     if (current.current.stage === 'seating') push({ type: 'advance' })
 
     setPhase('petition')
-    await Promise.all(seated.map((id) => runPetition(id, signal)))
+    await Promise.all(attending.map((id) => runPetition(id, signal)))
     if (signal.aborted) return
 
     push({ type: 'advance' }) // petition → deliberation
     setPhase('deliberation')
 
-    for (const id of resolveSpeakingOrder(seated, roster)) {
+    for (const id of resolveSpeakingOrder(attending, roster)) {
       if (signal.aborted) return
       await runTurn(id, signal)
     }
@@ -214,8 +235,8 @@ export function useChamber({
     try {
       const result = await requestReactions(current.current, reign, { signal })
       if (signal.aborted) return
-      push({ type: 'record-reactions', reactions: result.reactions })
-      onAftermathRef.current?.(result.reactions)
+      const settled = push({ type: 'record-reactions', reactions: result.reactions })
+      onAftermathRef.current?.(settled, result.reactions)
     } catch (error) {
       if (signal.aborted) return
       logChamber('aftermath failed', 'council', error)

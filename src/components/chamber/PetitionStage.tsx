@@ -23,6 +23,9 @@ function enterLine(name: string): string {
 /** A seat that produced nothing — the recording's held tongue, dressed in-world. */
 const HELD_TONGUE = 'holds their tongue, and the silence carries.'
 
+/** A seat too far out of favor to attend at all (§5.7, T-23). */
+const REFUSED = 'sends no word, and the seat sits empty. Your favor has run too thin.'
+
 export function PetitionStage({
   petitions,
   roster = COUNSELORS_BY_ID,
@@ -41,7 +44,9 @@ export function PetitionStage({
             const speech =
               petition.status === 'silent'
                 ? `${counselor.name} ${HELD_TONGUE}`
-                : petition.text
+                : petition.status === 'absent'
+                  ? `${counselor.name} ${REFUSED}`
+                  : petition.text
 
             return (
               <motion.div

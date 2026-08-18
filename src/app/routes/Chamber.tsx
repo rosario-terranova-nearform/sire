@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router'
 import { DemoModeBanner } from '@/components/DemoModeBanner'
 import { PetitionStage } from '@/components/chamber/PetitionStage'
@@ -9,7 +9,7 @@ import { AftermathStage } from '@/components/chamber/AftermathStage'
 import { ShareScene } from '@/components/chamber/ShareScene'
 import { Button } from '@/components/ui/pixelact-ui/button'
 import type { Audience, Reaction } from '@/domain/audience'
-import { applyReactions } from '@/lib/reign'
+import { commitAudience } from '@/lib/reign'
 import { getOrCreateReign, repository } from '@/lib/repository'
 import { buildSceneSnapshot } from '@/lib/share-scene'
 import { useChamber } from '@/hooks/useChamber'
@@ -39,22 +39,34 @@ export function Chamber() {
 
 function ChamberScene({ audience }: { audience: Audience }) {
   // The one permanent reign (§3): loaded once, moved only when the aftermath
-  // shifts favor, and persisted so it survives a reload (T-20).
+  // commits, and persisted so it survives a reload (T-20/T-23).
   const [reign, setReign] = useState(() => getOrCreateReign())
+  // Agendas that unmasked *this* audience, so the aftermath can flip exactly
+  // them open and no others (§3, T-23).
+  const [newlyRevealed, setNewlyRevealed] = useState<string[]>([])
   // The live court, so a custom counselor seated at this audience resolves to a
   // real definition through the whole AI chain rather than an unknown id (T-21).
   const roster = useRoster()
 
-  const onAftermath = useCallback((reactions: readonly Reaction[]) => {
-    setReign((prev) => applyReactions(prev, reactions))
-  }, [])
-
-  // Persist outside render whenever the reign moves. The initial load is
-  // already on disk (`getOrCreateReign` wrote it), so this is a no-op until
-  // favor changes — then it commits the new standings.
-  useEffect(() => {
-    repository.saveReign(reign)
-  }, [reign])
+  // §3 / §5.7 / T-23 — one commit when the court rises: fold the aftermath's
+  // favor, bump each speaker's heard count (unmasking agendas at the threshold),
+  // append the decree to memory, persist the reign, and archive the audience for
+  // the chronicle. Fires once, from the hook's aftermath step — not a render
+  // effect. `reign` here is the loaded reign; this commit is its first move.
+  const onAftermath = useCallback(
+    (finished: Audience, reactions: readonly Reaction[]) => {
+      const { reign: next, newlyRevealed: revealed } = commitAudience(
+        reign,
+        finished,
+        reactions,
+      )
+      setReign(next)
+      setNewlyRevealed(revealed)
+      repository.saveReign(next)
+      repository.saveAudience(finished)
+    },
+    [reign],
+  )
 
   const {
     petitions,
@@ -121,7 +133,12 @@ function ChamberScene({ audience }: { audience: Audience }) {
         )}
 
         {showAftermath && (
-          <AftermathStage reactions={reactions} loading={phase === 'reacting'} />
+          <AftermathStage
+            reactions={reactions}
+            loading={phase === 'reacting'}
+            roster={roster.byId}
+            newlyRevealed={newlyRevealed}
+          />
         )}
 
         {phase === 'aftermath' && live.decree !== undefined && (

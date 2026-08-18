@@ -6,6 +6,7 @@ import type {
   CounselorRoster,
 } from '@/domain/counselor'
 import { MAX_HISTORY, type Reign } from '@/domain/reign'
+import { favorPosture } from '@/lib/reign'
 import { BANNED_PHRASES } from './validate-exchange'
 
 /**
@@ -106,6 +107,8 @@ export function buildPetitionMessages(
   audience: Audience,
   reign: Reign,
 ): ModelMessage[] {
+  const posture = favorPostureInstruction(counselor, reign)
+
   return [
     { role: 'system', content: buildSystemPrompt(counselor, reign) },
     {
@@ -114,11 +117,33 @@ export function buildPetitionMessages(
         renderMatter(audience),
         '',
         'The chamber is silent. You have heard no one else and you will not hear them before you speak — this is your petition, not a reply.',
+        ...(posture === null ? [] : ['', posture]),
         '',
         'Tell the monarch what should be done, and what it costs. 2 to 4 sentences.',
       ].join('\n'),
     },
   ]
+}
+
+/**
+ * §5.7 / T-23 — the favor consequence, folded into the petition prompt. Only
+ * `terse` and `generous` reach here: `absent` counselors never petition (the
+ * chamber drops their seat before a prompt is built), and the fool's
+ * `licensed-tongue` is exempt, so his posture is always `normal`.
+ */
+function favorPostureInstruction(
+  counselor: Counselor,
+  reign: Reign,
+): string | null {
+  switch (favorPosture(counselor, reign)) {
+    case 'terse':
+      return 'You are deep out of the monarch\'s favor and you know it. Give the barest counsel — one grudging sentence, no warmth, nothing you are not forced to give.'
+    case 'generous':
+      return 'You stand high in the monarch\'s favor. Give your counsel, then volunteer one extra line — a warning or a scrap of intelligence you would usually keep back.'
+    case 'normal':
+    case 'absent':
+      return null
+  }
 }
 
 /**

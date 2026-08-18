@@ -589,11 +589,11 @@ _Done when:_ favor changes persist across reload, and the exported PNG contains 
 Implement `src/lib/repository.ts` — a typed interface (`getReign`, `saveReign`, `listAudiences`, `saveAudience`) backed by `localStorage`, with schema-versioned migration. Then the custom counselor editor: name, title, faction, stats, ability picker, voice fields. Custom counselors go through a dedicated client-side validation module — length caps, prompt-injection stripping, and the public-figure denylist — since there is no backend to enforce them against.
 _Done when:_ the repository interface has zero `localStorage` references leaking into UI code, a corrupted store recovers rather than crashing, and a custom counselor with an injected "ignore previous instructions" payload still speaks in character.
 
-**T-22 · Crisis interrupt**
+**T-22 · Crisis interrupt** ✅
 Implement the crisis screen per §9 via a static keyword/pattern list (no model call), run before any generation call. On a hit, return an adjournment payload; the client renders the plain non-pixel card with the single international support-resource link and generates nothing. Add the persistent entertainment-framing footer app-wide.
 _Done when:_ a battery of ~15 crisis-signal phrasings all adjourn the court, a battery of ~15 benign-but-dark questions ("should I fire my co-founder") all proceed normally, and every code path that can trigger generation runs the check first.
 
-**T-23 · Favor consequences and agenda reveals**
+**T-23 · Favor consequences and agenda reveals** ✅
 Apply the §5.7 favor thresholds to petition generation (terse at ≤ -5, absent at ≤ -8, extra line at ≥ +7); Grin (`licensed-tongue`) is exempt from all three. Reveal an agenda at `heardCount >= 3` with a card-flip animation. Build `/chronicle` showing past decrees, a favor chart, and revealed agendas.
 _Done when:_ favor thresholds demonstrably change output, and the third time a counselor speaks their agenda unlocks with an animation.
 

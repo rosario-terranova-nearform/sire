@@ -1,3 +1,4 @@
+import { motion, useReducedMotion } from 'motion/react'
 import type {
   Ability,
   Counselor,
@@ -37,6 +38,9 @@ export interface CounselorCardProps
   mood?: SpriteState
   /** Reveal the agenda instead of the masked `AGENDA: ???` state (T-23). */
   agendaRevealed?: boolean
+  /** Play the card-flip when the agenda is revealed, for the moment it unmasks
+   *  (§3, T-23). Off by default: the roster shows a settled state, not a reveal. */
+  animateAgendaReveal?: boolean
   /** Favor, `-10 … +10` (§3). Omit to hide the favor indicator. */
   favor?: number
   /** `speaking` only: the (possibly partial) petition/deliberation text. */
@@ -110,17 +114,38 @@ function AbilityBlock({ ability }: { ability: Ability }) {
 function AgendaBlock({
   agenda,
   revealed,
+  animateReveal,
 }: {
   agenda: string
   revealed: boolean
+  animateReveal: boolean
 }) {
+  const reduceMotion = useReducedMotion()
+
   return (
-    <div className="flex flex-col gap-0.5">
+    <div className="flex flex-col gap-0.5" style={{ perspective: 600 }}>
       <p className="text-xs uppercase tracking-wide text-muted-foreground">
         Agenda
       </p>
       {revealed ? (
-        <p className="text-sm text-foreground">{agenda}</p>
+        // T-23: the mask flips open the moment an agenda unlocks. Everywhere
+        // else the revealed agenda simply renders, no spin. Reduced motion
+        // (T-24) drops the flip and shows the text at rest.
+        <motion.p
+          className="text-sm text-foreground"
+          style={{ transformOrigin: 'left center' }}
+          initial={
+            animateReveal && !reduceMotion
+              ? { rotateY: -90, opacity: 0 }
+              : false
+          }
+          animate={{ rotateY: 0, opacity: 1 }}
+          transition={
+            reduceMotion ? { duration: 0 } : { duration: 0.5, ease: 'easeOut' }
+          }
+        >
+          {agenda}
+        </motion.p>
       ) : (
         <p className="font-mono text-sm text-muted-foreground">AGENDA: ???</p>
       )}
@@ -195,6 +220,7 @@ export function CounselorCard({
   variant = 'compact',
   mood = 'neutral',
   agendaRevealed = false,
+  animateAgendaReveal = false,
   favor,
   speech,
   placeholder,
@@ -245,7 +271,11 @@ export function CounselorCard({
       <CardContent className="flex flex-col gap-4">
         <StatPips stats={counselor.stats} />
         <AbilityBlock ability={counselor.ability} />
-        <AgendaBlock agenda={counselor.agenda} revealed={agendaRevealed} />
+        <AgendaBlock
+          agenda={counselor.agenda}
+          revealed={agendaRevealed}
+          animateReveal={animateAgendaReveal}
+        />
         {variant === 'full' && <VoiceBlock voice={counselor.voice} />}
       </CardContent>
       {footer}

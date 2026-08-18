@@ -9,4 +9,15 @@ describe('App', () => {
       screen.getByRole('heading', { name: 'The Throne Room' }),
     ).toBeInTheDocument()
   })
+
+  // §9 / T-22 — the framing footer is app-wide, mounted by the root layout, so
+  // it is present on the very first screen without any screen opting in.
+  it('shows the persistent entertainment-framing footer', () => {
+    render(<App />)
+    expect(
+      screen.getByText(
+        'Counsel from a court of fictional advisors. Entertainment, not advice.',
+      ),
+    ).toBeInTheDocument()
+  })
 })

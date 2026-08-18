@@ -61,6 +61,21 @@ describe('CounselorCard', () => {
     expect(screen.getByText(vane.agenda)).toBeInTheDocument()
   })
 
+  // T-23: the reveal moment plays a card-flip, but the agenda text is still
+  // there — the animation dresses the reveal, it does not gate the content.
+  it('shows the agenda through the reveal animation', () => {
+    render(
+      <CounselorCard
+        counselor={vane}
+        variant="full"
+        agendaRevealed
+        animateAgendaReveal
+      />,
+    )
+    expect(screen.getByText(vane.agenda)).toBeInTheDocument()
+    expect(screen.queryByText('AGENDA: ???')).not.toBeInTheDocument()
+  })
+
   it('renders the favor indicator only when favor is provided', () => {
     const { rerender } = render(
       <CounselorCard counselor={vane} variant="compact" />,

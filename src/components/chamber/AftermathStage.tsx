@@ -1,4 +1,5 @@
 import { motion, useReducedMotion } from 'motion/react'
+import { CounselorCard } from '@/components/CounselorCard'
 import { Sprite } from '@/components/Sprite'
 import { Badge } from '@/components/ui/pixelact-ui/badge'
 import type { Reaction } from '@/domain/audience'
@@ -16,13 +17,21 @@ export interface AftermathStageProps {
   roster?: CounselorRoster
   /** The court is still reacting — show the wait rather than an empty scene. */
   loading?: boolean
+  /** §3 / T-23 — counselor ids whose agenda just crossed the reveal threshold
+   *  this audience. Their masks flip open here, the moment they unlock. */
+  newlyRevealed?: readonly string[]
 }
 
 export function AftermathStage({
   reactions,
   roster = COUNSELORS_BY_ID,
   loading = false,
+  newlyRevealed = [],
 }: AftermathStageProps) {
+  const unmasked = newlyRevealed
+    .map((id) => roster[id])
+    .filter((counselor) => counselor !== undefined)
+
   return (
     <section aria-label="Aftermath" className="flex flex-col gap-4">
       <h2 className="font-heading text-2xl">The court reacts</h2>
@@ -45,6 +54,32 @@ export function AftermathStage({
             )
           })}
         </ul>
+      )}
+
+      {unmasked.length > 0 && (
+        <section
+          aria-label="Agendas revealed"
+          className="flex flex-col gap-4 border-t-4 border-gold pt-6"
+        >
+          <div>
+            <h3 className="font-heading text-xl">The mask slips</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              You have heard enough of them now to see what they were truly
+              after.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {unmasked.map((counselor) => (
+              <CounselorCard
+                key={counselor.id}
+                counselor={counselor}
+                variant="full"
+                agendaRevealed
+                animateAgendaReveal
+              />
+            ))}
+          </div>
+        </section>
       )}
     </section>
   )

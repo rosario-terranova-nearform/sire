@@ -2,6 +2,8 @@ import { generateObject, streamText, type ModelMessage } from 'ai'
 import type { Audience, Reaction, Vote } from '@/domain/audience'
 import type { Counselor, CounselorRoster, Faction } from '@/domain/counselor'
 import type { Reign } from '@/domain/reign'
+import type { CrisisCategory } from '@/content/crisis-patterns'
+import { screenQuestion } from '@/lib/crisis'
 import { COUNSELORS_BY_ID } from '@/content/counselors'
 import {
   demoExchange,
@@ -131,6 +133,26 @@ export class NotSeatedError extends Error {
   }
 }
 
+/**
+ * §9 / T-22 — the crisis screen is not only the composer's gate; it is baked
+ * into the generation boundary itself. Every one of the four calls screens the
+ * question before it does any work, so no future call site — a resumed audience,
+ * a scripted harness, a refactor — can reach a model with a flagged question.
+ * This is a UX safeguard, not a network boundary (the app is local and
+ * single-user), which is exactly why it lives at the point generation begins
+ * rather than behind a server that does not exist.
+ */
+export class CrisisAdjournedError extends Error {
+  readonly kind = 'crisis-adjourned'
+  readonly category: CrisisCategory
+
+  constructor(category: CrisisCategory) {
+    super('The court is adjourned: this question was flagged by the crisis screen.')
+    this.name = 'CrisisAdjournedError'
+    this.category = category
+  }
+}
+
 export class EmptyCompletionError extends Error {
   readonly kind = 'empty-completion'
   readonly modelId: string
@@ -174,6 +196,7 @@ export async function requestPetition(
   reign: Reign,
   options: CallOptions = {},
 ): Promise<CounselStream> {
+  assertNotCrisis(audience)
   const roster = options.roster ?? COUNSELORS_BY_ID
   assertAtTable(counselor, audience, roster)
 
@@ -225,6 +248,7 @@ export async function requestDeliberationTurn(
   reign: Reign,
   options: DeliberationTurnOptions = {},
 ): Promise<DeliberationTurn> {
+  assertNotCrisis(audience)
   const roster = options.roster ?? COUNSELORS_BY_ID
   assertAtTable(counselor, audience, roster)
 
@@ -335,6 +359,7 @@ export async function requestVotes(
   reign: Reign,
   options: CallOptions = {},
 ): Promise<VotesResult> {
+  assertNotCrisis(audience)
   const roster = options.roster ?? COUNSELORS_BY_ID
   const seated = seatedIds(audience, roster)
 
@@ -460,6 +485,7 @@ export async function requestReactions(
   reign: Reign,
   options: CallOptions = {},
 ): Promise<ReactionsResult> {
+  assertNotCrisis(audience)
   const roster = options.roster ?? COUNSELORS_BY_ID
   const seated = seatedIds(audience, roster)
 
@@ -811,6 +837,16 @@ function recordingReason(error: unknown): DemoReason {
   return error instanceof FreeTierExhaustedError
     ? 'free-quota-spent'
     : 'all-models-failed'
+}
+
+/**
+ * §9 / T-22 — refuse to generate anything for a flagged question. Runs before
+ * the network, before demo mode, before anything: a crisis question produces no
+ * counsel of any kind, live or recorded.
+ */
+function assertNotCrisis(audience: Audience): void {
+  const screen = screenQuestion(audience.question)
+  if (screen.adjourn) throw new CrisisAdjournedError(screen.category)
 }
 
 function assertAtTable(

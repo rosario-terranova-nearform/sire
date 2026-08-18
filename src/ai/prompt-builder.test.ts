@@ -198,6 +198,37 @@ describe('buildPetitionMessages (§5.3)', () => {
       }
     }
   })
+
+  // §5.7 / T-23 — favor demonstrably changes the petition prompt.
+  it('leaves an in-favor petition unmodified', () => {
+    const [, user] = buildPetitionMessages(vane, deliberating, reign)
+    expect(user.content).not.toContain('out of the monarch')
+    expect(user.content).not.toContain('high in the monarch')
+  })
+
+  it('makes a counselor terse when favor is spent (≤ -5)', () => {
+    const spent = makeReign({ favor: { [vane.id]: -6 } })
+    const [, user] = buildPetitionMessages(vane, deliberating, spent)
+    expect(user.content).toContain('out of the monarch')
+    expect(user.content).toContain('barest counsel')
+  })
+
+  it('lets a favored counselor volunteer an extra line (≥ +7)', () => {
+    const favored = makeReign({ favor: { [vane.id]: 8 } })
+    const [, user] = buildPetitionMessages(vane, deliberating, favored)
+    expect(user.content).toContain('high in the monarch')
+    expect(user.content).toContain('one extra line')
+  })
+
+  it('exempts the fool from favor posture at either extreme', () => {
+    const grin = COUNSELORS_BY_ID.grin
+    for (const favor of [-9, 9]) {
+      const reign = makeReign({ favor: { [grin.id]: favor } })
+      const [, user] = buildPetitionMessages(grin, deliberating, reign)
+      expect(user.content).not.toContain('out of the monarch')
+      expect(user.content).not.toContain('high in the monarch')
+    }
+  })
 })
 
 describe('buildDeliberationMessages (§5.4)', () => {

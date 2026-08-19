@@ -64,11 +64,13 @@ export function DeliberationStage({
         {activeSpeaker !== null && roster[activeSpeaker.counselorId] && (
           <li
             ref={followRef}
-            aria-live="polite"
+            // No aria-live here: streaming text would announce token by token.
+            // Completed turns are announced once via the chamber's LiveLog (T-24).
             className="flex gap-3 border-l-4 border-gold pl-3"
           >
             <Sprite
               counselorId={activeSpeaker.counselorId}
+              name={roster[activeSpeaker.counselorId].name}
               state="scheming"
               scale={2}
             />
@@ -116,7 +118,7 @@ function TurnRow({
       transition={reduceMotion ? { duration: 0 } : { duration: 0.3 }}
       className={cn('flex gap-3 border-b-2 border-stone pb-4')}
     >
-      <Sprite counselorId={speakerId} state="scheming" scale={2} />
+      <Sprite counselorId={speakerId} name={speakerName} state="scheming" scale={2} />
       <div className="min-w-0">
         <p className="font-heading text-sm">
           {speakerName}

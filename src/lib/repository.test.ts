@@ -99,6 +99,15 @@ describe('repository — audiences (T-21)', () => {
 
     expect(repo.listAudiences().map((entry) => entry.id)).toEqual(['good'])
   })
+
+  // T-25 — resume reads one audience back by id.
+  it('gets a stored audience by id, and null for an unknown one', () => {
+    const one = audience('aud-1', '2026-08-12T10:00:00.000Z')
+    repo.saveAudience(one)
+
+    expect(repo.getAudience('aud-1')).toEqual(one)
+    expect(repo.getAudience('never-held')).toBeNull()
+  })
 })
 
 describe('repository — custom counselors (T-21)', () => {

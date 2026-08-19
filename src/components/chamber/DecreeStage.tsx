@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/pixelact-ui/button'
-import { MAX_DECREE_LENGTH } from '@/domain/audience'
+import { MAX_DECREE_LENGTH, type Decree } from '@/domain/audience'
 import type { CounselorRoster } from '@/domain/counselor'
 import { COUNSELORS_BY_ID } from '@/content/counselors'
 import { cn } from '@/lib/utils'
@@ -18,6 +18,9 @@ export interface DecreeStageProps {
   onIssue: (text: string, sidedWithId?: string) => void
   /** The ruling is in — lock the parchment. */
   disabled?: boolean
+  /** T-25 — a decree already handed down (a resumed, finished audience). When
+   *  present the stage shows the sealed ruling instead of an editable form. */
+  issued?: Decree
 }
 
 /** §5.6 — the one-tap rulings. */
@@ -28,6 +31,7 @@ export function DecreeStage({
   roster = COUNSELORS_BY_ID,
   onIssue,
   disabled = false,
+  issued,
 }: DecreeStageProps) {
   const [text, setText] = useState('')
   const [sidedWith, setSidedWith] = useState<string | undefined>(undefined)
@@ -38,6 +42,29 @@ export function DecreeStage({
   function seal() {
     if (!canSeal) return
     onIssue(trimmed, sidedWith)
+  }
+
+  // T-25 — a resumed, finished audience: the ruling stands, shown sealed and
+  // read-only. No form, because there is nothing left to decide.
+  if (issued !== undefined) {
+    const sidedWithName =
+      issued.sidedWithId !== undefined
+        ? roster[issued.sidedWithId]?.name
+        : undefined
+    return (
+      <section aria-label="The decree" className="flex flex-col gap-4">
+        <h2 className="font-heading text-2xl">Your decree</h2>
+        <blockquote className="border-4 border-wax bg-card p-4 font-heading text-lg text-foreground">
+          &ldquo;{issued.text}&rdquo;
+        </blockquote>
+        {sidedWithName !== undefined && (
+          <p className="text-sm text-muted-foreground">
+            You sided with{' '}
+            <span className="font-heading text-foreground">{sidedWithName}</span>.
+          </p>
+        )}
+      </section>
+    )
   }
 
   return (

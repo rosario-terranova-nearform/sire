@@ -85,7 +85,9 @@
   --success-foreground: var(--ink);
   --warning: color-mix(in srgb, var(--gold) 85%, white);
   --warning-foreground: var(--ink);
-  --link: color-mix(in srgb, var(--wax) 75%, var(--parchment));
+  /* T-24: parchment-forward so link text clears AA on the dark card surface
+     (a redder mix drops to ~1.8:1); the underline still carries the affordance. */
+  --link: color-mix(in srgb, var(--wax) 30%, var(--parchment));
   --border: color-mix(in srgb, var(--parchment) 25%, var(--ink));
   --input: color-mix(in srgb, var(--parchment) 20%, var(--ink));
   --ring: var(--gold);
@@ -182,6 +184,25 @@
   .pixelated {
     image-rendering: pixelated;
     image-rendering: -moz-crisp-edges;
+  }
+}
+
+/*
+ * T-24 — reduced-motion is a court-wide contract, not a per-component one.
+ * Motion's `useReducedMotion` already cuts entrance and reveal animations in
+ * JS (staggered card entrances, the agenda flip, deliberation reveals); this
+ * is the belt-and-braces floor for everything driven by CSS instead — the
+ * streaming-cursor pulse, Tailwind's `tw-animate-css` classes, smooth
+ * auto-scroll. The content is identical; only the movement is gone.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 

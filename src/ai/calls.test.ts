@@ -348,6 +348,35 @@ describe('requestPetition (§5.3, T-10)', () => {
     expect(await collect(stream.textStream)).toBe(demoPetition('vane'))
     expect(getDemoState().reason).toBe('missing-api-key')
   })
+
+  // T-25 — offline: a key is set and a model is on hand, but there is no
+  // connection, so the court goes straight to tape rather than failing calls.
+  it('serves the recording, with the offline reason, when the browser is offline', async () => {
+    vi.stubEnv('VITE_OPENROUTER_API_KEY', 'sk-present')
+    resetDemoMode()
+    const model = mockTextModel(modelChain('martial')[0], 'never dialled')
+    const original = Object.getOwnPropertyDescriptor(navigator, 'onLine')
+    Object.defineProperty(navigator, 'onLine', {
+      configurable: true,
+      value: false,
+    })
+
+    try {
+      const stream = await requestPetition(vane, makeAudience(), reign, {
+        resolveLanguageModel: resolverFor({ [model.modelId]: model }),
+        demoChunkDelayMs: 0,
+      })
+
+      expect(stream.source).toBe('demo')
+      expect(await collect(stream.textStream)).toBe(demoPetition('vane'))
+      expect(getDemoState().reason).toBe('offline')
+      // The injected model was never streamed — no connection was attempted.
+      expect(model.doStreamCalls).toHaveLength(0)
+    } finally {
+      if (original) Object.defineProperty(navigator, 'onLine', original)
+      else delete (navigator as unknown as { onLine?: boolean }).onLine
+    }
+  })
 })
 
 describe('the recording’s cadence', () => {

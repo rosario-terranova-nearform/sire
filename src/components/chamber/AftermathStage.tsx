@@ -98,7 +98,12 @@ function ReactionRow({
 
   return (
     <li className="flex gap-3">
-      <Sprite counselorId={reaction.counselorId} state={reaction.mood} scale={3} />
+      <Sprite
+        counselorId={reaction.counselorId}
+        name={name}
+        state={reaction.mood}
+        scale={3}
+      />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-heading text-base">{name}</span>

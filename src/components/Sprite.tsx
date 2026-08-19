@@ -2,6 +2,7 @@ import { cn } from '@/lib/utils'
 import {
   SPRITE_FRAME_ORDER,
   SPRITE_FRAME_SIZE,
+  SPRITE_MOOD_LABEL,
   type SpriteState,
 } from '@/lib/sprite'
 
@@ -17,6 +18,11 @@ interface SpriteProps {
   state: SpriteState
   scale?: 2 | 3 | 4
   className?: string
+  /** The counselor's name, for alt text. Falls back to the id (T-24). */
+  name?: string
+  /** Override the composed alt text entirely (e.g. a decorative sprite could
+   *  pass '' to hide it from the accessibility tree). */
+  alt?: string
 }
 
 /**
@@ -29,14 +35,22 @@ export function Sprite({
   state,
   scale = 2,
   className,
+  name,
+  alt,
 }: SpriteProps) {
   const frameIndex = SPRITE_FRAME_ORDER.indexOf(state)
   const sheetWidth = SPRITE_FRAME_SIZE * SPRITE_FRAME_ORDER.length * scale
+  // T-24: "{name}, {mood}", the alt text per sprite state. An explicit empty
+  // string hides a purely decorative sprite; anything else composes the default.
+  const label =
+    alt ?? `${name ?? counselorId}, ${SPRITE_MOOD_LABEL[state]}`
+  const decorative = label.length === 0
 
   return (
     <div
-      role="img"
-      aria-label={`${counselorId}, ${state}`}
+      role={decorative ? undefined : 'img'}
+      aria-hidden={decorative || undefined}
+      aria-label={decorative ? undefined : label}
       className={cn(SCALE_CLASS[scale], 'shrink-0 bg-no-repeat', className)}
       style={{
         backgroundImage: `url(/sprites/${counselorId}.png)`,

@@ -12,7 +12,17 @@ import { hasApiKey } from './client'
  */
 
 export type DemoReason =
-  'missing-api-key' | 'free-quota-spent' | 'all-models-failed'
+  | 'missing-api-key'
+  | 'free-quota-spent'
+  | 'all-models-failed'
+  /** T-25 — the browser is offline, so no model can be reached at all. */
+  | 'offline'
+
+/** T-25 — whether the browser reports itself offline right now. Checked live on
+ *  every call, so the court dials out again the moment the connection returns. */
+export function isOffline(): boolean {
+  return typeof navigator !== 'undefined' && navigator.onLine === false
+}
 
 export interface DemoState {
   active: boolean
@@ -62,6 +72,19 @@ export function subscribeDemoMode(listener: () => void): () => void {
   return () => {
     listeners.delete(listener)
   }
+}
+
+/**
+ * T-25 — when the connection returns, lift an *offline* recording so the next
+ * audience runs live again. A recording engaged for a missing key or a spent
+ * quota is left alone: coming back online does not fix either of those.
+ */
+export function installOnlineRecovery(target: EventTarget = window): () => void {
+  const onOnline = () => {
+    if (state.active && state.reason === 'offline') resetDemoMode()
+  }
+  target.addEventListener('online', onOnline)
+  return () => target.removeEventListener('online', onOnline)
 }
 
 /** Test seam. */

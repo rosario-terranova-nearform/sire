@@ -19,7 +19,12 @@ import {
   resolveLanguageModel,
   type ModelResolver,
 } from './client'
-import { engageDemoMode, isKeyWideDemoMode, type DemoReason } from './demo-mode'
+import {
+  engageDemoMode,
+  isKeyWideDemoMode,
+  isOffline,
+  type DemoReason,
+} from './demo-mode'
 import { FreeTierExhaustedError } from './rate-limit'
 import { throttled } from './throttle'
 import {
@@ -802,6 +807,11 @@ function sleep(ms: number): Promise<void> {
  */
 function engageRecording(): void {
   if (isKeyWideDemoMode()) return
+  // T-25 — offline is the true reason when there is a key but no connection.
+  if (isOffline()) {
+    engageDemoMode('offline')
+    return
+  }
   engageDemoMode('missing-api-key')
 }
 
@@ -815,6 +825,8 @@ function engageRecording(): void {
  */
 function shouldRecord(options: CallOptions): boolean {
   if (isKeyWideDemoMode()) return true
+  // T-25 — no connection means no model, whatever the key or resolver says.
+  if (isOffline()) return true
   return options.resolveLanguageModel === undefined && !hasApiKey()
 }
 

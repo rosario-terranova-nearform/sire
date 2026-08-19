@@ -58,4 +58,28 @@ describe('Sprite', () => {
     )
     expect(getByRole('img').style.backgroundSize).toBe('384px 96px')
   })
+
+  // T-24 — alt text per sprite state, naming the counselor and describing the mood.
+  it('composes alt text from the counselor name and a readable mood phrase', () => {
+    const { getByRole } = render(
+      <Sprite counselorId="marrow" name="Keeper Marrow" state="appalled" />,
+    )
+    expect(getByRole('img')).toHaveAttribute(
+      'aria-label',
+      'Keeper Marrow, appalled',
+    )
+  })
+
+  it('falls back to the counselor id when no name is given', () => {
+    const { getByRole } = render(<Sprite counselorId="wren" state="scheming" />)
+    expect(getByRole('img')).toHaveAttribute('aria-label', 'wren, scheming')
+  })
+
+  it('hides a sprite marked decorative from the accessibility tree', () => {
+    const { queryByRole, container } = render(
+      <Sprite counselorId="vane" state="neutral" alt="" />,
+    )
+    expect(queryByRole('img')).toBeNull()
+    expect(container.firstElementChild).toHaveAttribute('aria-hidden', 'true')
+  })
 })

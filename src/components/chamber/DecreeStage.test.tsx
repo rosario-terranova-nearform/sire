@@ -33,4 +33,28 @@ describe('DecreeStage (T-19)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Denied.' }))
     expect(onIssue).toHaveBeenCalledWith('Denied.', undefined)
   })
+
+  // T-25 — a resumed, finished audience shows the sealed ruling, read-only.
+  it('shows the sealed ruling and no form when a decree already stands', () => {
+    const onIssue = vi.fn()
+    render(
+      <DecreeStage
+        seated={SEATED}
+        onIssue={onIssue}
+        issued={{
+          text: 'Let the marriage be made.',
+          sidedWithId: 'vane',
+          issuedAt: '2026-08-12T00:00:00.000Z',
+        }}
+      />,
+    )
+
+    expect(screen.getByText(/let the marriage be made/i)).toBeInTheDocument()
+    expect(screen.getByText(/you sided with/i)).toBeInTheDocument()
+    // No editable form, no seal button, nothing left to rule.
+    expect(screen.queryByLabelText(/your decree/i)).toBeNull()
+    expect(
+      screen.queryByRole('button', { name: /seal the decree/i }),
+    ).toBeNull()
+  })
 })

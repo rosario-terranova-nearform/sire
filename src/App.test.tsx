@@ -6,7 +6,11 @@ describe('App', () => {
   it('renders the throne room at the root route', () => {
     render(<App />)
     expect(
-      screen.getByRole('heading', { name: 'The Throne Room' }),
+      screen.getByRole('heading', { level: 1, name: 'SIRE' }),
+    ).toBeInTheDocument()
+    // The front door to the whole flow (T-26): the audience CTA is present.
+    expect(
+      screen.getByRole('link', { name: /hold an audience/i }),
     ).toBeInTheDocument()
   })
 

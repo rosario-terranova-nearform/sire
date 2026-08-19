@@ -73,6 +73,8 @@ export interface Repository {
   saveReign(reign: Reign): void
   /** Past audiences, newest first. */
   listAudiences(): Audience[]
+  /** One audience by id, or null if it is not stored (T-25 resume). */
+  getAudience(id: string): Audience | null
   /** Insert or replace by id, newest first, capped. */
   saveAudience(audience: Audience): void
   listCustomCounselors(): Counselor[]
@@ -186,6 +188,10 @@ export function createRepository(storage: StorageLike): Repository {
     saveReign: (reign) => write('reign', reign),
 
     listAudiences: () => sortByRecency(readEach('audiences', audienceSchema)),
+
+    getAudience: (id) =>
+      readEach('audiences', audienceSchema).find((entry) => entry.id === id) ??
+      null,
 
     saveAudience: (audience) => {
       const rest = readEach('audiences', audienceSchema).filter(

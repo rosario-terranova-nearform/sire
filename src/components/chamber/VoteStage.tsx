@@ -69,7 +69,12 @@ export function VoteStage({
               const isLeader = !tally.hung && tally.leaders.includes(id)
               return (
                 <li key={id} className="flex items-center gap-3">
-                  <Sprite counselorId={id} state="neutral" scale={2} />
+                  <Sprite
+                    counselorId={id}
+                    name={counselor.name}
+                    state="neutral"
+                    scale={2}
+                  />
                   <div className="min-w-0 flex-1">
                     <p className="font-heading text-sm">
                       {counselor.name}

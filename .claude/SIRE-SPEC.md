@@ -599,15 +599,15 @@ _Done when:_ favor thresholds demonstrably change output, and the third time a c
 
 ### Phase 5 — Hardening
 
-**T-24 · Accessibility**
+**T-24 · Accessibility** ✅
 Full keyboard navigation for seating and decree; ARIA live regions for streaming counselor text so screen readers get each turn once (not per token); alt text per sprite state; respect `prefers-reduced-motion` by cutting entrance animations and revealing turns instantly; verify contrast on parchment surfaces.
 _Done when:_ an axe pass is clean, the whole flow is completable by keyboard alone, and reduced-motion mode has no animation but the same content.
 
-**T-25 · Error and edge handling**
+**T-25 · Error and edge handling** ✅
 Cover: model timeout mid-stream, all fallbacks exhausted, empty question, refusal from the model, browser offline, and a stage abandoned mid-flight then resumed. Every failure surfaces as in-world copy, never a stack trace.
 _Done when:_ each case has a test and a designed in-world message.
 
-**T-26 · Local run verification**
+**T-26 · Local run verification** ✅
 Verify the full happy path (seat → ask → petition → deliberate → vote → decree → aftermath) manually against `npm run dev`, and again against a production build (`npm run build && npm run preview`).
 _Done when:_ both the dev server and the built/previewed app complete a real audience end-to-end, and demo mode works correctly in both when the env key is removed.
 

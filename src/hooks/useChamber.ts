@@ -17,6 +17,7 @@ import {
 } from '@/ai/calls'
 import type { Tally } from '@/ai/sanitize'
 import { audienceReducer, resolveSpeakingOrder } from '@/engine/audience-machine'
+import { tallyVotes } from '@/ai/sanitize'
 import { refusesToAttend } from '@/lib/reign'
 
 /**
@@ -105,6 +106,10 @@ export interface UseChamberOptions {
    *  caller can commit favor, heard counts and memory to the reign and persist
    *  the audience (T-20/T-23). The audience carries the decree and reactions. */
   onAftermath?: (audience: Audience, reactions: readonly Reaction[]) => void
+  /** T-25 — the run has reached the decree hold: all AI is done and the court
+   *  waits on the monarch. The caller persists this checkpoint so a reload
+   *  resumes here rather than raising the court. Carries the live transcript. */
+  onReachDecree?: (audience: Audience) => void
   /** Test seam: scripted AI calls in place of the real network layer. */
   deps?: Partial<ChamberDeps>
 }
@@ -121,6 +126,9 @@ export interface ChamberState {
   tally: Tally | null
   /** §5.7 — the court's reactions, once the decree has been ruled. */
   reactions: Reaction[]
+  /** T-24 — append-only, one line per completed petition/turn/absence, for a
+   *  screen-reader live log. Announced once each, never per streaming token. */
+  announcements: string[]
   /** §5.6 — the monarch rules. A no-op until the chamber holds at `decree`. */
   issueDecree: (text: string, sidedWithId?: string) => void
 }
@@ -131,6 +139,7 @@ export function useChamber({
   roster = COUNSELORS_BY_ID,
   autoStart = true,
   onAftermath,
+  onReachDecree,
   deps,
 }: UseChamberOptions): ChamberState {
   const requestPetition = deps?.requestPetition ?? defaultRequestPetition
@@ -143,12 +152,18 @@ export function useChamber({
   // synchronously; `audience` state is the render mirror.
   const current = useRef(initialAudience)
   const [audience, setAudience] = useState(initialAudience)
-  const [phase, setPhase] = useState<ChamberPhase>('petition')
+  const [phase, setPhase] = useState<ChamberPhase>(() =>
+    initialPhase(initialAudience),
+  )
   const [statuses, setStatuses] = useState<Record<string, PetitionStatus>>(() =>
-    initialStatuses(initialAudience.seated),
+    initialStatuses(initialAudience),
   )
   const [activeSpeaker, setActiveSpeaker] = useState<ActiveSpeaker | null>(null)
-  const [tally, setTally] = useState<Tally | null>(null)
+  const [tally, setTally] = useState<Tally | null>(() =>
+    initialTally(initialAudience),
+  )
+  // T-24 — the screen-reader transcript. Append-only, in arrival order.
+  const [announcements, setAnnouncements] = useState<string[]>([])
 
   const started = useRef(false)
   // Lives for the whole hook, not just the mount run: the decree fires after
@@ -159,8 +174,10 @@ export function useChamber({
   // render never restarts the one-shot run (its deps are intentionally empty).
   // Kept current from an effect, never written during render.
   const onAftermathRef = useRef(onAftermath)
+  const onReachDecreeRef = useRef(onReachDecree)
   useEffect(() => {
     onAftermathRef.current = onAftermath
+    onReachDecreeRef.current = onReachDecree
   })
 
   function push(action: Parameters<typeof audienceReducer>[1]) {
@@ -174,7 +191,27 @@ export function useChamber({
     setStatuses((prev) => ({ ...prev, [counselorId]: status }))
   }
 
+  function announce(message: string) {
+    setAnnouncements((prev) => [...prev, message])
+  }
+
+  function nameOf(counselorId: string): string {
+    return roster[counselorId]?.name ?? counselorId
+  }
+
   async function run(signal: AbortSignal) {
+    // T-25 — a resumed audience arrives already past the AI stages. If it holds
+    // at the decree (all counsel in, no ruling yet) or has finished, we restore
+    // the view and hand the floor straight back rather than re-running a room
+    // that already spoke — its streams are long gone and cannot be replayed.
+    const resumeStage = current.current.stage
+    if (resumeStage === 'decree' || resumeStage === 'aftermath') {
+      const settled = current.current
+      setTally(tallyVotes(settled.votes, settled.seated))
+      setPhase(resumeStage === 'aftermath' ? 'aftermath' : 'decree')
+      return
+    }
+
     const seated = current.current.seated
 
     // §5.7 / T-23 — a counselor at favor ≤ -8 refuses to attend; their seat sits
@@ -186,7 +223,10 @@ export function useChamber({
       return counselor !== undefined && !refusesToAttend(counselor, reign)
     })
     for (const id of seated) {
-      if (!attending.includes(id)) setStatus(id, 'absent')
+      if (!attending.includes(id)) {
+        setStatus(id, 'absent')
+        announce(`${nameOf(id)} sends no word; the seat sits empty.`)
+      }
     }
 
     // §5.2 → §5.3: seating confirms into petition. Usually already there
@@ -213,8 +253,11 @@ export function useChamber({
 
     // §5.6 — the machine holds at the decree. Nothing advances until the
     // monarch rules through `issueDecree`.
-    push({ type: 'advance' }) // vote → decree
+    const held = push({ type: 'advance' }) // vote → decree
     setPhase('decree')
+    // T-25 — persist the checkpoint: a reload from here resumes at the decree
+    // rather than raising the court, with every prior stage intact.
+    onReachDecreeRef.current?.(held)
   }
 
   async function runVote(signal: AbortSignal) {
@@ -295,10 +338,17 @@ export function useChamber({
     } finally {
       if (!signal.aborted) {
         push({ type: 'petition-complete', counselorId })
-        const spoke = current.current.petitions.some(
-          (p) => p.counselorId === counselorId && p.text.trim().length > 0,
+        const petition = current.current.petitions.find(
+          (p) => p.counselorId === counselorId,
         )
+        const spoke = (petition?.text.trim().length ?? 0) > 0
         setStatus(counselorId, spoke ? 'complete' : 'silent')
+        // T-24 — one line to the live log, once the stream has closed.
+        announce(
+          spoke
+            ? `${nameOf(counselorId)} petitions: ${petition?.text.trim()}`
+            : `${nameOf(counselorId)} holds their tongue.`,
+        )
       }
     }
   }
@@ -335,6 +385,10 @@ export function useChamber({
           text: turn.text,
         },
       })
+      // T-24 — announce the finished turn once, naming who it rebuts.
+      announce(
+        `${nameOf(turn.counselorId)} rebuts ${nameOf(turn.targetId)}: ${turn.text}`,
+      )
     } catch (error) {
       if (signal.aborted) return
       logChamber('floor turn failed', counselorId, error)
@@ -385,12 +439,47 @@ export function useChamber({
     votes: audience.votes,
     tally,
     reactions: audience.reactions,
+    announcements,
     issueDecree,
   }
 }
 
-function initialStatuses(seated: readonly string[]): Record<string, PetitionStatus> {
-  return Object.fromEntries(seated.map((id) => [id, 'waiting' as const]))
+/**
+ * The phase to start in. Fresh audiences open on the petition row; a resumed
+ * one (T-25) opens at its saved stage so the correct sections paint on first
+ * render, before the run effect confirms it.
+ */
+function initialPhase(audience: Audience): ChamberPhase {
+  if (audience.stage === 'aftermath') return 'aftermath'
+  if (audience.stage === 'decree') return 'decree'
+  return 'petition'
+}
+
+/**
+ * The tally to start from. A fresh audience has none; a resumed one (T-25)
+ * carries its recorded votes, so the strip paints on first render.
+ */
+function initialTally(audience: Audience): Tally | null {
+  if (audience.stage !== 'decree' && audience.stage !== 'aftermath') return null
+  if (audience.votes.length === 0) return null
+  return tallyVotes(audience.votes, audience.seated)
+}
+
+/**
+ * Petition statuses to start from. A fresh audience is all `waiting`; a resumed
+ * one (T-25) carries closed petitions, so each seat starts already `complete`
+ * or `silent` and the row renders the finished transcript without re-streaming.
+ */
+function initialStatuses(audience: Audience): Record<string, PetitionStatus> {
+  return Object.fromEntries(
+    audience.seated.map((id) => {
+      const petition = audience.petitions.find((p) => p.counselorId === id)
+      if (petition?.complete === true) {
+        return [id, petition.text.trim().length > 0 ? 'complete' : 'silent']
+      }
+      return [id, 'waiting' as const]
+    }),
+  )
 }
 
 function logChamber(what: string, counselorId: string, error: unknown) {

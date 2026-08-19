@@ -303,6 +303,171 @@ describe('useChamber — aftermath (T-20)', () => {
   })
 })
 
+describe('useChamber — screen-reader announcements (T-24)', () => {
+  it('emits one announcement per completed petition and per floor turn', async () => {
+    const seated = ['vane', 'marrow', 'grin']
+    const { result } = renderHook(() =>
+      useChamber({
+        initialAudience: petitioningAudience(seated),
+        reign: createDefaultReign(),
+        deps: scriptedDeps(),
+      }),
+    )
+
+    await waitFor(() => expect(result.current.phase).toBe('decree'))
+
+    const { announcements } = result.current
+    // Three petitions + three floor turns, each announced exactly once.
+    const petitionLines = announcements.filter((a) => a.includes('petitions:'))
+    const rebuttalLines = announcements.filter((a) => a.includes('rebuts'))
+    expect(petitionLines).toHaveLength(3)
+    expect(rebuttalLines).toHaveLength(3)
+    // The text is the finished turn, not a per-token fragment.
+    expect(petitionLines.some((a) => a.includes('Lord Marshal Vane'))).toBe(true)
+  })
+
+  it('announces an absent seat once, in-world', async () => {
+    const seated = ['vane', 'marrow', 'grin']
+    const reign = { ...createDefaultReign(), favor: { vane: -9 } }
+    const { result } = renderHook(() =>
+      useChamber({
+        initialAudience: petitioningAudience(seated),
+        reign,
+        deps: scriptedDeps(),
+      }),
+    )
+
+    await waitFor(() => expect(result.current.phase).toBe('decree'))
+    expect(
+      result.current.announcements.filter((a) =>
+        a.includes('sends no word'),
+      ),
+    ).toHaveLength(1)
+  })
+})
+
+describe('useChamber — resume a persisted audience (T-25)', () => {
+  it('resumes at the decree hold without re-running the AI stages', async () => {
+    const seated = ['vane', 'marrow', 'grin']
+    let petitionCalls = 0
+    const deps: Partial<ChamberDeps> = {
+      ...scriptedDeps(),
+      requestPetition: (counselor) => {
+        petitionCalls += 1
+        return Promise.resolve(streamOf(counselor.id, 'should never run'))
+      },
+    }
+
+    const { result } = renderHook(() =>
+      useChamber({
+        initialAudience: settledAudience(seated, 'decree'),
+        reign: createDefaultReign(),
+        deps,
+      }),
+    )
+
+    await waitFor(() => expect(result.current.phase).toBe('decree'))
+    // No stream was reopened; the persisted transcript stands as-is.
+    expect(petitionCalls).toBe(0)
+    expect(result.current.tally).not.toBeNull()
+    expect(result.current.votes).toHaveLength(seated.length)
+    // The persisted petitions show as complete without re-streaming.
+    expect(
+      result.current.petitions.every((p) => p.status === 'complete'),
+    ).toBe(true)
+  })
+
+  it('resumes and then completes: the monarch can still rule', async () => {
+    const seated = ['vane', 'marrow', 'grin']
+    const { result } = renderHook(() =>
+      useChamber({
+        initialAudience: settledAudience(seated, 'decree'),
+        reign: createDefaultReign(),
+        deps: scriptedDeps(),
+      }),
+    )
+
+    await waitFor(() => expect(result.current.phase).toBe('decree'))
+    act(() => result.current.issueDecree('Resumed and ruled.'))
+
+    await waitFor(() => expect(result.current.phase).toBe('aftermath'))
+    expect(result.current.audience.decree?.text).toBe('Resumed and ruled.')
+    expect(result.current.reactions).toHaveLength(seated.length)
+  })
+
+  it('reopens a finished audience straight to the aftermath', async () => {
+    const seated = ['vane', 'marrow', 'grin']
+    let petitionCalls = 0
+    const deps: Partial<ChamberDeps> = {
+      ...scriptedDeps(),
+      requestPetition: (counselor) => {
+        petitionCalls += 1
+        return Promise.resolve(streamOf(counselor.id, 'should never run'))
+      },
+    }
+
+    const { result } = renderHook(() =>
+      useChamber({
+        initialAudience: settledAudience(seated, 'aftermath'),
+        reign: createDefaultReign(),
+        deps,
+      }),
+    )
+
+    await waitFor(() => expect(result.current.phase).toBe('aftermath'))
+    expect(petitionCalls).toBe(0)
+    expect(result.current.reactions).toHaveLength(seated.length)
+    expect(result.current.audience.decree?.text).toBe('So be it.')
+  })
+})
+
+/** A persisted audience past the AI stages: every petition closed, the floor
+ *  spoken, the tally in. At `aftermath` it also carries a decree and reactions. */
+function settledAudience(
+  seated: string[],
+  stage: 'decree' | 'aftermath',
+): Audience {
+  const base = createAudience({
+    id: 'settled-audience',
+    createdAt: '2026-08-12T00:00:00.000Z',
+    question: 'Should I take the Duke up on his offer?',
+    seated,
+  })
+  const petitions = seated.map((id) => ({
+    counselorId: id,
+    text: `${COUNSELORS_BY_ID[id]?.name ?? id} has spoken.`,
+    complete: true,
+  }))
+  const deliberation = seated.map((id, order) => {
+    const targetId = seated.find((other) => other !== id) ?? id
+    return { counselorId: id, targetId, text: `${id} disputes ${targetId}.`, order }
+  })
+  const votes = seated.map((id) => ({
+    voterId: id,
+    forId: seated.find((other) => other !== id) ?? id,
+    rationale: 'scripted',
+  }))
+
+  if (stage === 'decree') {
+    return { ...base, stage: 'decree', petitions, deliberation, votes }
+  }
+  const reactions: Reaction[] = seated.map((id) => ({
+    counselorId: id,
+    mood: 'pleased',
+    line: 'As you say, sire.',
+    favorDelta: 1,
+  }))
+  return {
+    ...base,
+    stage: 'aftermath',
+    petitions,
+    deliberation,
+    votes,
+    decree: { text: 'So be it.', issuedAt: '2026-08-12T01:00:00.000Z' },
+    reactions,
+  }
+}
+
 /** A valid deliberation turn: rebuts the first other seated counselor. */
 function turnFor(counselorId: string, seated: string[]): DeliberationTurn {
   const targetId = seated.find((id) => id !== counselorId) ?? counselorId

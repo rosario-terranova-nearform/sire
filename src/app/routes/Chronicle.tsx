@@ -100,7 +100,12 @@ function StandingRow({
 
   return (
     <li className="flex gap-4 border-2 border-stone bg-card p-4">
-      <Sprite counselorId={counselor.id} state="neutral" scale={3} />
+      <Sprite
+        counselorId={counselor.id}
+        name={counselor.name}
+        state="neutral"
+        scale={3}
+      />
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <div className="min-w-0">

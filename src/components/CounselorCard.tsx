@@ -201,6 +201,7 @@ function Portrait({
     <div className="flex items-start gap-3">
       <Sprite
         counselorId={counselor.id}
+        name={counselor.name}
         state={mood}
         scale={SPRITE_SCALE[variant]}
       />

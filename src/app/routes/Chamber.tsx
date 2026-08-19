@@ -1,6 +1,7 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router'
 import { DemoModeBanner } from '@/components/DemoModeBanner'
+import { LiveLog } from '@/components/a11y/LiveLog'
 import { PetitionStage } from '@/components/chamber/PetitionStage'
 import { DeliberationStage } from '@/components/chamber/DeliberationStage'
 import { VoteStage } from '@/components/chamber/VoteStage'
@@ -21,16 +22,24 @@ import { useRoster } from '@/hooks/useRoster'
  * where the tally and decree will land (§5.5–5.7, T-19/T-20).
  *
  * The audience is handed in via router state by the seating screen. A cold
- * arrival — a reload, a shared link — has no such state; rather than a blank or
- * a crash, the court has simply risen, and the monarch is sent to seat a new
- * one. (Resuming a persisted audience is T-21/T-25.)
+ * arrival — a reload, a shared link — has no such state; T-25 then falls back to
+ * the persisted checkpoint, so an audience abandoned at the decree hold (or a
+ * finished one) resumes rather than raising the court. Only when nothing is
+ * found — a truly unknown id, or an audience left mid-stream, whose live streams
+ * cannot be replayed — does the court rise and the monarch seat a new council.
  */
 export function Chamber() {
   const { id } = useParams()
   const location = useLocation()
-  const audience = readAudience(location.state)
+  const fromState = readAudience(location.state)
 
-  if (audience === null || audience.id !== id) {
+  const audience = useMemo(() => {
+    if (fromState !== null && fromState.id === id) return fromState
+    if (id === undefined) return null
+    return repository.getAudience(id)
+  }, [fromState, id])
+
+  if (audience === null) {
     return <CourtRisen />
   }
 
@@ -68,6 +77,11 @@ function ChamberScene({ audience }: { audience: Audience }) {
     [reign],
   )
 
+  // T-25 — persist the decree-hold checkpoint so a reload resumes here.
+  const onReachDecree = useCallback((held: Audience) => {
+    repository.saveAudience(held)
+  }, [])
+
   const {
     petitions,
     turns,
@@ -76,6 +90,7 @@ function ChamberScene({ audience }: { audience: Audience }) {
     votes,
     tally,
     reactions,
+    announcements,
     issueDecree,
     audience: live,
   } = useChamber({
@@ -83,6 +98,7 @@ function ChamberScene({ audience }: { audience: Audience }) {
     reign,
     roster: roster.byId,
     onAftermath,
+    onReachDecree,
   })
 
   const showDeliberation = phase !== 'petition'
@@ -99,6 +115,7 @@ function ChamberScene({ audience }: { audience: Audience }) {
     <main className="min-h-svh bg-background px-6 py-10 text-foreground sm:px-10">
       <div className="mx-auto flex max-w-4xl flex-col gap-10">
         <DemoModeBanner />
+        <LiveLog messages={announcements} label="Court transcript" />
 
         <header className="border-4 border-ink bg-card p-6">
           <p className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -127,8 +144,10 @@ function ChamberScene({ audience }: { audience: Audience }) {
         {showDecree && (
           <DecreeStage
             seated={audience.seated}
+            roster={roster.byId}
             onIssue={issueDecree}
             disabled={phase !== 'decree'}
+            issued={live.decree}
           />
         )}
 

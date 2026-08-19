@@ -10,6 +10,8 @@ const WHY = {
     "This key's free counsel is spent for the day. The court sits from the record until the quota resets, and no coin has been spent to avoid it.",
   'all-models-failed':
     'Every model the court could reach refused, so the counsel below was written in advance.',
+  offline:
+    'The court cannot reach the wider world — you appear to be offline. It sits from the record until the connection returns.',
 } as const
 
 /**
